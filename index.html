@@ -99,14 +99,12 @@ header p{color:var(--text2);font-size:.85rem;margin-top:4px}
         <label><input type="checkbox" class="dow-cb" value="5" checked> 五</label>
         <label><input type="checkbox" class="dow-cb" value="6" checked> 六</label>
         <label><input type="checkbox" class="dow-cb" value="7" checked> 日</label>
-        <span style="color:var(--border);margin:0 4px">|</span>
-        <label><input type="checkbox" id="sat-only"> 仅周六</label>
       </div>
       <div class="filter-row">
-        <span class="range-label" style="min-width:auto">最低</span>
-        <input type="range" id="min-hours" min="0" max="24" step="0.5" value="0">
-        <span class="range-label" id="min-label">0h</span>
-        <label><input type="checkbox" id="hide-low"> 隐藏低于阈值的天</label>
+        <span style="font-size:.82rem;color:var(--text2)">日总时长范围</span>
+        <input type="range" id="min-hours-low" min="0" max="24" step="0.5" value="0">
+        <span class="range-label" id="range-label">0h ~ 24h</span>
+        <input type="range" id="min-hours-high" min="0" max="24" step="0.5" value="24">
       </div>
     </div>
 
@@ -251,10 +249,8 @@ function getFilteredDays(){
   }
 
   // 星期筛选
-  const satOnly=document.getElementById('sat-only').checked;
   const dows=[];
-  if(satOnly){dows.push(6)}
-  else{document.querySelectorAll('.dow-cb:checked').forEach(cb=>dows.push(parseInt(cb.value)))}
+  document.querySelectorAll('.dow-cb:checked').forEach(cb=>dows.push(parseInt(cb.value)));
   if(dows.length<7)blocks=blocks.filter(b=>dows.includes(getDow(b.date)));
 
   // 按天聚合
@@ -267,16 +263,16 @@ function getFilteredDays(){
     days[b.date].group[b.group]=1;
   });
 
-  // 阈值过滤
-  const minH=parseFloat(document.getElementById('min-hours').value);
-  const hideLow=document.getElementById('hide-low').checked;
+  // 双滑块范围过滤
+  const low=parseFloat(document.getElementById('min-hours-low').value);
+  const high=parseFloat(document.getElementById('min-hours-high').value);
   const dates=Object.keys(days).sort();
   return dates.map(d=>{
     const day=days[d];
     const hours=Math.round(day.total/60*10)/10;
-    const below=hideLow&&hours<minH;
-    return {date:d,day,hours,below};
-  }).filter(d=>!d.below);
+    const outside=hours<low||hours>high;
+    return {date:d,day,hours,outside};
+  }).filter(d=>!d.outside);
 }
 
 // ─── 获取分类当前层级列表 ───────────────────
@@ -290,6 +286,25 @@ function getActiveCategories(){
   }
   // 二级分类: 所有 tags
   return data.categories.map(c=>c.name).sort();
+}
+
+// ─── 自动调整滑块范围 ───────────────────────
+function getMaxDailyHours(){
+  let blocks=data.blocks.slice();
+  if(currentRange!=='all'){const{f,t}=getComputedRange();blocks=blocks.filter(b=>b.date>=f&&b.date<=t)}
+  const dows=[];document.querySelectorAll('.dow-cb:checked').forEach(cb=>dows.push(parseInt(cb.value)));
+  if(dows.length<7)blocks=blocks.filter(b=>dows.includes(getDow(b.date)));
+  const days={};blocks.forEach(b=>{days[b.date]=(days[b.date]||0)+b.duration_min});
+  const maxH=Math.ceil(Math.max(...Object.values(days).map(m=>Math.round(m/60*10)/10),0));
+  return maxH||24;
+}
+function updateSliderBounds(){
+  const maxH=getMaxDailyHours();
+  const low=document.getElementById('min-hours-low'),high=document.getElementById('min-hours-high');
+  low.max=maxH;high.max=maxH;
+  if(parseFloat(low.value)>maxH)low.value=maxH;
+  if(parseFloat(high.value)>maxH)high.value=maxH;
+  document.getElementById('range-label').textContent=parseFloat(low.value)+'h ~ '+parseFloat(high.value)+'h';
 }
 
 function getCategoryDisplayName(catName){
@@ -345,41 +360,37 @@ function renderTrend(){
     return {
       label: getCategoryDisplayName(catName),
       data: values,
-      backgroundColor: getCategoryColor(catName),
-      hoverBackgroundColor: getCategoryColor(catName),
-      borderRadius: 2,
-      borderWidth: 0
+      borderColor: getCategoryColor(catName),
+      backgroundColor: getCategoryColor(catName)+'15',
+      pointBackgroundColor: getCategoryColor(catName),
+      tension: 0.3,
+      fill: false,
+      pointRadius: 2,
+      pointHoverRadius: 6,
+      borderWidth: 2
     };
+  });
+
+  // 添加总计时长的折线（虚线）
+  const totalValues=days.map(d=>d.hours);
+  datasets.push({
+    label: '📊 总计时长',
+    data: totalValues,
+    borderColor: 'rgba(148,163,184,.5)',
+    backgroundColor: 'transparent',
+    borderDash: [5,3],
+    borderWidth: 1.5,
+    tension: .3,
+    pointRadius: 0,
+    order: 1
   });
 
   if(trendChart)trendChart.destroy();
   const ctx=document.getElementById('trendChart').getContext('2d');
 
-  // 自定义插件：低活跃日标记灰色背景
-  const grayBgPlugin = {
-    id: 'grayBg',
-    beforeDraw(c){
-      const minH=parseFloat(document.getElementById('min-hours').value);
-      const hideLow=document.getElementById('hide-low').checked;
-      if(!hideLow||minH===0)return;
-      const meta=c.getDatasetMeta(0);
-      if(!meta||!meta.data)return;
-      const chartArea=c.chartArea;
-      const ctx2=c.ctx;
-      meta.data.forEach((bar,i)=>{
-        const day=days[i];
-        if(day&&day.hours<minH){
-          ctx2.fillStyle='rgba(148,163,184,0.12)';
-          ctx2.fillRect(bar.x-bar.width/2,chartArea.top,bar.width,chartArea.bottom-chartArea.top);
-        }
-      });
-    }
-  };
-
   trendChart=new Chart(ctx,{
-    type:'bar',
+    type:'line',
     data:{labels,datasets},
-    plugins:[grayBgPlugin],
     options:{
       responsive:true,
       maintainAspectRatio:true,
@@ -412,12 +423,10 @@ function renderTrend(){
       },
       scales:{
         x:{
-          stacked:true,
           ticks:{font:{size:10},maxTicksLimit:20},
           grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}
         },
         y:{
-          stacked:true,
           beginAtZero:true,
           title:{display:true,text:'小时',font:{size:12}},
           ticks:{font:{size:10},callback:v=>v+'h'},
@@ -549,6 +558,7 @@ document.querySelectorAll('#range-btns button').forEach(btn=>{
       fromDate=document.getElementById('date-from').value;toDate=document.getElementById('date-to').value;
     }
     renderTrend();
+    updateSliderBounds();
     if(document.getElementById('pie-sync').checked){
       const days=getFilteredDays();
       if(days.length>0){selPieDate=days[days.length-1].date;document.getElementById('pie-date').value=selPieDate;renderPie()}
@@ -557,28 +567,31 @@ document.querySelectorAll('#range-btns button').forEach(btn=>{
 });
 
 // 自定义日期
-document.getElementById('date-from').addEventListener('change',function(){if(currentRange==='custom'){fromDate=this.value;renderTrend()}});
-document.getElementById('date-to').addEventListener('change',function(){if(currentRange==='custom'){toDate=this.value;renderTrend()}});
+document.getElementById('date-from').addEventListener('change',function(){if(currentRange==='custom'){fromDate=this.value;renderTrend();updateSliderBounds()}});
+document.getElementById('date-to').addEventListener('change',function(){if(currentRange==='custom'){toDate=this.value;renderTrend();updateSliderBounds()}});
 
 // 星期筛选
 document.querySelectorAll('.dow-cb').forEach(cb=>{
-  cb.addEventListener('change',()=>{
-    const satOnly=document.getElementById('sat-only');
-    if(satOnly.checked)return;
-    renderTrend();
-  });
-});
-document.getElementById('sat-only').addEventListener('change',function(){
-  document.querySelectorAll('.dow-cb').forEach(cb=>{cb.disabled=this.checked});
-  renderTrend();
+  cb.addEventListener('change',()=>{renderTrend();updateSliderBounds()});
 });
 
-// 阈值
-document.getElementById('min-hours').addEventListener('input',function(){
-  document.getElementById('min-label').textContent=this.value+'h';
+// 双滑块范围
+function updateRange(){
+  const low=parseFloat(document.getElementById('min-hours-low').value);
+  const high=parseFloat(document.getElementById('min-hours-high').value);
+  document.getElementById('range-label').textContent=low+'h ~ '+high+'h';
+  // 确保 low <= high
+  if(low>high){document.getElementById('min-hours-low').value=high;document.getElementById('min-hours-high').value=low}
+  renderTrend();
+}
+document.getElementById('min-hours-low').addEventListener('input',updateRange);
+document.getElementById('min-hours-high').addEventListener('input',function(){
+  const low=parseFloat(document.getElementById('min-hours-low').value);
+  const high=parseFloat(this.value);
+  document.getElementById('range-label').textContent=low+'h ~ '+high+'h';
+  if(high<low){document.getElementById('min-hours-low').value=high;document.getElementById('min-hours-high').value=low}
   renderTrend();
 });
-document.getElementById('hide-low').addEventListener('change',renderTrend);
 
 // 分类视图切换
 document.querySelectorAll('#cat-view-btns button').forEach(btn=>{
