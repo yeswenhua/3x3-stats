@@ -156,7 +156,7 @@ input[type=range]{accent-color:var(--accent);width:80px;height:3px;vertical-alig
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="chart.umd.min.js"></script>
 <script>
 (async function(){
 'use strict';
@@ -172,11 +172,12 @@ const catColors = {};
 
 // ─── 数据加载 ────────────────────────────────
 try {
+  if(typeof Chart==='undefined')throw new Error('Chart.js 加载失败');
   const resp = await fetch('data/stats.json');
   if (!resp.ok) throw new Error('HTTP '+resp.status);
   data = await resp.json();
 } catch(e){
-  document.getElementById('loading').innerHTML='<p style="color:#ef4444">⚠ 加载失败</p>';
+  document.getElementById('loading').innerHTML='<p style="color:#ef4444">⚠ 加载失败: '+e.message+'</p>';
   return;
 }
 
