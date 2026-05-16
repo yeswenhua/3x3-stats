@@ -55,15 +55,37 @@ def extract(db_path):
     # ─────────────────────────────────────────────
     # 1. 读取 tag_groups.json 分组配置，建立 tag → group 映射
     # ─────────────────────────────────────────────
+    tag_to_group = {}   # tag_name -> {name, color}
+    hierarchy = {}      # parent_tag -> [child_tags]
     script_dir = os.path.dirname(os.path.abspath(__file__))
     tag_groups_path = os.path.join(script_dir, "tag_groups.json")
-    tag_to_group = {}   # tag_name -> {name, color}
     if os.path.exists(tag_groups_path):
         with open(tag_groups_path, encoding="utf-8") as f:
             cfg = json.load(f)
         for gname, ginfo in cfg["groups"].items():
-            for tagname in ginfo["tags"]:
-                tag_to_group[tagname] = {"name": gname, "color": ginfo["color"]}
+            def _walk_tags(entries):
+                for item in entries:
+                    if isinstance(item, str):
+                        tag_to_group[item] = {"name": gname, "color": ginfo["color"]}
+                    elif isinstance(item, dict):
+                        for parent, children in item.items():
+                            tag_to_group[parent] = {"name": gname, "color": ginfo["color"]}
+                            _walk_tags(children)
+            _walk_tags(ginfo["tags"])
+        # 提取层级关系
+        def _extract_tree(entries):
+            for item in entries:
+                if isinstance(item, dict):
+                    for parent, children in item.items():
+                        hierarchy[parent] = []
+                        for c in children:
+                            if isinstance(c, str):
+                                hierarchy[parent].append(c)
+                            elif isinstance(c, dict):
+                                hierarchy[parent].extend(list(c.keys()))
+                                _extract_tree([c])
+        for gname, ginfo in cfg["groups"].items():
+            _extract_tree(ginfo["tags"])
 
     # 从数据库中读取标签列表
     all_tags = {}
@@ -204,6 +226,7 @@ def extract(db_path):
         },
         "group_info": list(group_info.values()),
         "categories": categories,
+        "hierarchy": hierarchy,
         "blocks": blocks,
         "aggregates": {
             "daily": daily,

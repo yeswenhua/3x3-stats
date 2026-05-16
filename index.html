@@ -61,7 +61,7 @@ input[type=range]{accent-color:var(--accent);width:80px;height:3px;vertical-alig
 .chart-wrapper canvas{width:100%!important}
 
 /* 饼图容器限制 */
-#pie-wrapper{max-width:400px;margin:0 auto}
+#pie-wrapper canvas{max-height:380px;width:100%!important}
 
 #cat-level-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 #cat-level-row button{padding:2px 10px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:12px;font-size:.75rem;cursor:pointer}
@@ -167,7 +167,7 @@ let totalChart = null, trendChart = null, pieChart = null;
 let currentRange = 'this-week';
 let fromDate = '', toDate = '';
 let catView = 'group';
-let expandedGroup = null;
+let expanded = []; // [] = groups, ['组名'] = tags, ['组名','父标签'] = sub-tags
 const catColors = {};
 
 // ─── 数据加载 ────────────────────────────────
@@ -186,24 +186,32 @@ function pad2(n){return n<10?'0'+n:''+n}
 function dateStr(d){return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())}
 function getDow(w){const d=new Date(w+'T00:00:00');const r=d.getDay();return r===0?7:r}
 
+// ─── HSL 色板（黄金角分布） ─────────────────
+function hslColor(i){const h=(i*137.508)%360;return`hsl(${h},60%,55%)`}
+const hslMemo={};let hslIdx=0;
+function nextHsl(){const c=hslColor(hslIdx++);return c}
+
 // ─── 颜色 ────────────────────────────────────
 const groupColorMap = {};
 data.group_info.forEach(g=>{groupColorMap[g.name]=g.color});
-const colorPool = ['#6366f1','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6','#f97316','#84cc16','#3b82f6','#a855f7','#e11d48','#0ea5e9','#10b981','#f43f5e','#d946ef','#0d9488','#eab308','#4ade80','#fb923c','#a78bfa','#2dd4bf','#fbbf24','#34d399','#f87171','#818cf8','#a3e635','#f472b6','#67e8f9'];
-data.categories.forEach((c,i)=>{catColors[c.name]=c.color||colorPool[i%colorPool.length]});
+data.categories.forEach((c,i)=>{catColors[c.name]=nextHsl()});
 
-// ─── 构建分组层级 ────────────────────────────
+// ─── 构建分组 & 层级 ────────────────────────
+const hierarchy = data.hierarchy||{};
+// 标记哪些 tag 是子类（不出现在二级列表中）
+const isChild = {};
+Object.values(hierarchy).forEach(children=>children.forEach(c=>isChild[c]=1));
+
 let groups = [];
 (function(){
   const gmap={};
   data.blocks.forEach(b=>{
     if(!gmap[b.group])gmap[b.group]={name:b.group,color:groupColorMap[b.group]||'#94a3b8',cats:{},total:0};
-    if(!gmap[b.group].cats[b.category])gmap[b.group].cats[b.category]={name:b.category,mins:0,color:catColors[b.category]||'#94a3b8'};
+    if(!gmap[b.group].cats[b.category])gmap[b.group].cats[b.category]={name:b.category,mins:0};
     gmap[b.group].cats[b.category].mins+=b.duration_min;
     gmap[b.group].total+=b.duration_min;
   });
   groups=Object.values(gmap);
-  groups.forEach(g=>{g.cats=Object.values(g.cats).sort((a,b)=>b.mins-a.mins)});
   const order=data.group_info.map(g=>g.name);
   groups.sort((a,b)=>{const ia=order.indexOf(a.name),ib=order.indexOf(b.name);return(ia===-1?99:ia)-(ib===-1?99:ib)});
 })();
@@ -224,7 +232,7 @@ let groups = [];
   document.getElementById('date-to').min=mr.from;document.getElementById('date-to').max=mr.to;document.getElementById('date-to').value=mr.to;
 })();
 
-// ─── 日期范围计算 ──────────────────────────
+// ─── 日期范围 ──────────────────────────────
 function getComputedRange(){
   if(currentRange==='this-week'){
     const now=new Date();const d=now.getDay()||7;
@@ -233,75 +241,77 @@ function getComputedRange(){
     return{f:dateStr(mon),t:dateStr(sun)};
   }
   if(currentRange==='this-month'){
-    const now=new Date();
-    return{f:now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-01',t:dateStr(now)};
+    const now=new Date();return{f:now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-01',t:dateStr(now)};
   }
   if(currentRange==='this-year'){
-    const now=new Date();
-    return{f:now.getFullYear()+'-'+pad2(1)+'-01',t:dateStr(now)};
+    const now=new Date();return{f:now.getFullYear()+'-01-01',t:dateStr(now)};
   }
-  if(currentRange==='all'){
-    const mr=data.meta.date_range;
-    return{f:mr.from,t:mr.to};
-  }
+  if(currentRange==='all'){const mr=data.meta.date_range;return{f:mr.from,t:mr.to};}
   return{f:fromDate,t:toDate};
 }
 
-// ─── 数据过滤（不含滑块，用于总图） ──────
+// ─── 数据过滤 ──────────────────────────────
 function filterBlocks(blocks, applySlider){
   if(currentRange!=='custom'){const{f,t}=getComputedRange();fromDate=f;toDate=t}
   blocks=blocks.filter(b=>b.date>=fromDate&&b.date<=toDate);
   const dows=[];document.querySelectorAll('.dow-cb:checked').forEach(cb=>dows.push(parseInt(cb.value)));
   if(dows.length<7)blocks=blocks.filter(b=>dows.includes(getDow(b.date)));
-
   if(applySlider){
     const low=parseFloat(document.getElementById('min-hours-low').value);
     const high=parseFloat(document.getElementById('min-hours-high').value);
     const days=aggregateByDay(blocks);
-    const okDates={};
-    days.forEach(d=>{if(d.hours>=low&&d.hours<=high)okDates[d.date]=1});
-    blocks=blocks.filter(b=>okDates[b.date]);
+    const ok={};days.forEach(d=>{if(d.hours>=low&&d.hours<=high)ok[d.date]=1});
+    blocks=blocks.filter(b=>ok[b.date]);
   }
   return blocks;
 }
-
 function aggregateByDay(blocks){
   const days={};
   blocks.forEach(b=>{
-    if(!days[b.date])days[b.date]={categories:{},total:0,group:{}};
+    if(!days[b.date])days[b.date]={categories:{},total:0};
     if(!days[b.date].categories[b.category])days[b.date].categories[b.category]=0;
     days[b.date].categories[b.category]+=b.duration_min;
     days[b.date].total+=b.duration_min;
-    days[b.date].group[b.group]=1;
   });
   return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,day])=>({date,day,hours:Math.round(day.total/60*10)/10}));
 }
 
-// ─── 分类当前层级列表 ─────────────────────
+// ─── 分类列表（3级）─────────────────────────
 function getActiveCategories(){
-  if(expandedGroup){
-    const g=groups.find(x=>x.name===expandedGroup);
-    if(!g)return [];
-    const subs=g.cats.map(c=>c.name);
-    const parentMins=data.blocks.filter(b=>b.group===expandedGroup).reduce((s,b)=>s+b.duration_min,0);
-    const childMins=g.cats.reduce((s,c)=>s+c.mins,0);
-    const diff=Math.round((parentMins-childMins)/60*10)/10;
-    if(diff>0.05)subs.push(expandedGroup);
-    return subs;
+  if(expanded.length===0)return groups.map(g=>g.name);
+  const grpName=expanded[0];
+  const g=groups.find(x=>x.name===grpName);
+  if(!g)return [];
+  if(expanded.length===1){
+    // 显示该组下所有非子类的 tag + 有子类的父级 tag
+    const tags=g.cats.map(c=>c.name).filter(t=>!isChild[t]);
+    // 有子类的父级如果不在 tag 列表中但 hierarchy 里有 → 也加进来
+    Object.keys(hierarchy).forEach(p=>{
+      const cat=data.categories.find(c=>c.name===p);
+      if(cat&&cat.group===grpName&&!tags.includes(p))tags.push(p);
+    });
+    return tags;
   }
-  return groups.map(g=>g.name);
+  // expanded.length===2: 显示子类 + 父级剩余时间
+  const parent=expanded[1];
+  const children=hierarchy[parent]||[];
+  const subs=children.slice();
+  // 计算父级是否有未分配到子类的时间
+  const parentTotal=g.cats.find(c=>c.name===parent)?.mins||data.blocks.filter(b=>b.category===parent).reduce((s,b)=>s+b.duration_min,0);
+  const childTotal=data.blocks.filter(b=>children.includes(b.category)).reduce((s,b)=>s+b.duration_min,0);
+  const diff=Math.round((parentTotal-childTotal)/60*10)/10;
+  if(diff>0.05)subs.push(parent);
+  return subs;
 }
-const tempSubColors={};
+
+// ─── 颜色（3级）─────────────────────────────
+const subColorMemo={};
 function getCategoryColor(catName){
-  if(!expandedGroup)return groupColorMap[catName]||'#94a3b8';
-  if(catView==='sub'){
-    // 从 colorPool 分配随机色
-    if(!tempSubColors[catName])tempSubColors[catName]=colorPool[Object.keys(tempSubColors).length%colorPool.length];
-    return tempSubColors[catName];
-  }
-  return catColors[catName]||'#94a3b8';
+  if(expanded.length===0)return groupColorMap[catName]||'#94a3b8';
+  // 二级或更深：HSL 随机色
+  if(!subColorMemo[catName])subColorMemo[catName]=nextHsl();
+  return subColorMemo[catName];
 }
-function getCatDisplay(catName){return catName;}
 
 // ─── 更新滑块范围 ──────────────────────────
 function updateSliderBounds(){
@@ -315,62 +325,71 @@ function updateSliderBounds(){
   document.getElementById('range-label').textContent=parseFloat(low.value)+'h ~ '+parseFloat(high.value)+'h';
 }
 
-// ─── 渲染总图（反映趋势图当前分类的总和，无滑块影响） ──
+// ─── 渲染总图 ──────────────────────────────
 function renderTotal(){
   const blocks=filterBlocks(data.blocks.slice(),false);
   const days=aggregateByDay(blocks);
   if(days.length===0){if(totalChart){totalChart.destroy();totalChart=null}return;}
   const labels=days.map(d=>d.date);
+  const showDots=days.length<60;
   const activeCats=getActiveCategories();
-  const values=days.map(d=>{
+
+  function sumPerDay(d){
     let totalMins=0;
     activeCats.forEach(catName=>{
-      if(!expandedGroup){
+      if(expanded.length===0){
         const g=groups.find(x=>x.name===catName);
         if(g)Object.entries(d.day.categories).forEach(([c,m])=>{
           const cat=data.categories.find(x=>x.name===c);
           if(cat&&cat.group===g.name)totalMins+=m;
         });
+      } else if(expanded.length===1){
+        // level 2: sum each tag's time (including children implicitly through the tag's mins)
+        totalMins+=d.day.categories[catName]||0;
+        // add children time if this tag has children
+        const children=hierarchy[catName];
+        if(children)children.forEach(ch=>{totalMins+=d.day.categories[ch]||0});
       } else {
-        if(catName===expandedGroup){
-          // 展开时，expandedGroup 作为剩余时间的占位名
-          const g=groups.find(x=>x.name===expandedGroup);
-          if(g){
-            let childSum=0;
-            g.cats.forEach(sc=>{childSum+=d.day.categories[sc.name]||0});
-            Object.entries(d.day.categories).forEach(([c,m])=>{
-              const cat=data.categories.find(x=>x.name===c);
-              if(cat&&cat.group===expandedGroup)totalMins+=m;
-            });
-            totalMins-=childSum;
-          }
+        // level 3: show children + parent remaining
+        const parent=expanded[1];
+        if(catName===parent){
+          let childSum=0;
+          (hierarchy[parent]||[]).forEach(ch=>{childSum+=d.day.categories[ch]||0});
+          Object.entries(d.day.categories).forEach(([c,m])=>{
+            const cat=data.categories.find(x=>x.name===c);
+            if(cat&&cat.group===expanded[0]){
+              const parentTag=expanded[1];
+              if(!hierarchy[parentTag]||!hierarchy[parentTag].includes(c)){
+                totalMins+=m;
+              }
+            }
+          });
+          totalMins-=childSum;
         } else {
           totalMins+=d.day.categories[catName]||0;
         }
       }
     });
     return Math.round(totalMins/60*10)/10;
-  });
+  }
+
+  const values=days.map(d=>sumPerDay(d));
   if(totalChart)totalChart.destroy();
   const ctx=document.getElementById('totalChart').getContext('2d');
   totalChart=new Chart(ctx,{
-    type:'line',
-    data:{labels,datasets:[{
+    type:'line',data:{labels,datasets:[{
       label:'总时长',data:values,
       borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.1)',
-      fill:true,tension:.3,pointRadius:0,pointHoverRadius:5,borderWidth:2
+      fill:true,tension:.3,pointRadius:showDots?2.5:0,pointHoverRadius:5,borderWidth:2
     }]},
     options:{
       responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?2:4,
       interaction:{mode:'index',intersect:false},
       scales:{
         x:{ticks:{font:{size:9},maxTicksLimit:15},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}},
-        y:{beginAtZero:true,title:{display:true,text:'小时',font:{size:11}},ticks:{font:{size:9},callback:v=>v+'h'},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}}
+        y:{title:{display:true,text:'小时',font:{size:11}},ticks:{font:{size:9},callback:v=>v+'h'},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}}
       },
-      plugins:{
-        tooltip:{callbacks:{label:ctx=>'总时长: '+ctx.parsed.y.toFixed(1)+'h'}},
-        legend:{display:false}
-      }
+      plugins:{tooltip:{callbacks:{label:ctx=>'总时长: '+ctx.parsed.y.toFixed(1)+'h'}},legend:{display:false}}
     }
   });
 }
@@ -381,51 +400,48 @@ function renderTrend(){
   const days=aggregateByDay(blocks);
   if(days.length===0){if(trendChart){trendChart.destroy();trendChart=null}return;}
   const labels=days.map(d=>d.date);
+  const showDots=days.length<60;
   const activeCats=getActiveCategories();
-    const datasets=activeCats.map(catName=>{
-    const isGroup=!expandedGroup;
-    const values=days.map(d=>{
-      let mins=0;
-      if(isGroup){
-        const g=groups.find(x=>x.name===catName);
-        if(g)Object.entries(d.day.categories).forEach(([c,m])=>{
+
+  function valForDay(catName,d){
+    let mins=0;
+    if(expanded.length===0){
+      const g=groups.find(x=>x.name===catName);
+      if(g)Object.entries(d.day.categories).forEach(([c,m])=>{
+        const cat=data.categories.find(x=>x.name===c);
+        if(cat&&cat.group===g.name)mins+=m;
+      });
+    } else if(expanded.length===1){
+      mins=(d.day.categories[catName]||0);
+      const children=hierarchy[catName];
+      if(children)children.forEach(ch=>{mins+=d.day.categories[ch]||0});
+    } else {
+      const parent=expanded[1];
+      if(catName===parent){
+        let childSum=0;
+        (hierarchy[parent]||[]).forEach(ch=>{childSum+=d.day.categories[ch]||0});
+        Object.entries(d.day.categories).forEach(([c,m])=>{
           const cat=data.categories.find(x=>x.name===c);
-          if(cat&&cat.group===g.name)mins+=m;
-        });
-      } else {
-        // 如果是展开模式，检查此标签名是否就是上级分类名（剩余时间）
-        if(catName===expandedGroup){
-          const g=groups.find(x=>x.name===expandedGroup);
-          if(g){
-            let childSum=0;
-            Object.entries(d.day.categories).forEach(([c,m])=>{
-              const cat=data.categories.find(x=>x.name===c);
-              if(cat&&cat.group===expandedGroup&&g.cats.find(cc=>cc.name===c))childSum+=m;
-            });
-            mins=0; // 父级剩余时间单独计算
-            Object.entries(d.day.categories).forEach(([c,m])=>{
-              const cat=data.categories.find(x=>x.name===c);
-              if(cat&&cat.group===expandedGroup){
-                mins+=m;
-              }
-            });
-            mins-=childSum;
+          if(cat&&cat.group===expanded[0]){
+            if(!hierarchy[parent]||!hierarchy[parent].includes(c)){mins+=m}
           }
-        } else {
-          mins=d.day.categories[catName]||0;
-        }
+        });
+        mins-=childSum;
+      } else {
+        mins=d.day.categories[catName]||0;
       }
-      return Math.round(mins/60*10)/10;
-    });
-    return{
-      label:getCatDisplay(catName),
-      data:values,
-      borderColor:getCategoryColor(catName),
-      backgroundColor:getCategoryColor(catName)+'15',
-      pointBackgroundColor:getCategoryColor(catName),
-      tension:0.3,fill:false,pointRadius:0,pointHoverRadius:4,borderWidth:1.5
-    };
-  });
+    }
+    return Math.round(mins/60*10)/10;
+  }
+
+  const datasets=activeCats.map(catName=>({
+    label:catName,
+    data:days.map(d=>valForDay(catName,d)),
+    borderColor:getCategoryColor(catName),
+    backgroundColor:getCategoryColor(catName)+'18',
+    pointBackgroundColor:getCategoryColor(catName),
+    tension:.3,fill:false,pointRadius:showDots?2.5:0,pointHoverRadius:4,borderWidth:1.5
+  }));
 
   if(trendChart)trendChart.destroy();
   const ctx=document.getElementById('trendChart').getContext('2d');
@@ -436,14 +452,19 @@ function renderTrend(){
       interaction:{mode:'nearest',intersect:false},
       onClick:(e,els)=>{
         if(els.length>0){
-          const dsIdx=els[0].datasetIndex;
-          const label=trendChart.data.datasets[dsIdx].label;
-          if(!expandedGroup){
+          const label=trendChart.data.datasets[els[0].datasetIndex].label;
+          if(expanded.length===0){
             const match=groups.find(g=>g.name===label);
             if(match&&match.name!=='其他'&&match.name!=='未分类'){
-              expandedGroup=match.name;
-              document.getElementById('cat-breadcrumb').style.display='inline';
-              document.getElementById('cat-current').textContent=' > '+match.name;
+              expanded=[match.name];
+              updateBreadcrumb();
+              renderAll();return;
+            }
+          } else if(expanded.length===1){
+            // level2: if this tag has children in hierarchy, drill further
+            if(hierarchy[label]&&hierarchy[label].length>0){
+              expanded.push(label);
+              updateBreadcrumb();
               renderAll();return;
             }
           }
@@ -451,13 +472,204 @@ function renderTrend(){
       },
       scales:{
         x:{ticks:{font:{size:9},maxTicksLimit:15},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}},
-        y:{beginAtZero:true,title:{display:true,text:'小时',font:{size:11}},ticks:{font:{size:9},callback:v=>v+'h'},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}}
+        y:{title:{display:true,text:'小时',font:{size:11}},ticks:{font:{size:9},callback:v=>v+'h'},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}}
       },
       plugins:{
         tooltip:{callbacks:{title:items=>items[0].dataset.label,label:ctx=>ctx.parsed.y.toFixed(1)+'h'}},
         legend:{
           position:'bottom',
           labels:{boxWidth:4,boxHeight:4,padding:4,font:{size:8},color:getComputedStyle(document.documentElement).getPropertyValue('--text').trim()},
+          onClick:(e,legendItem)=>{
+            const meta=trendChart.getDatasetMeta(legendItem.datasetIndex);
+            meta.hidden=meta.hidden===null?!trendChart.data.datasets[legendItem.datasetIndex].hidden:!meta.hidden;
+            trendChart.update();
+          }
+        }
+      }
+    }
+  });
+}
+
+// ─── 渲染饼图（趋势图聚合） ────────────────
+function renderPie(){
+  const blocks=filterBlocks(data.blocks.slice(),true);
+  if(blocks.length===0){if(pieChart){pieChart.destroy();pieChart=null}return;}
+  const activeCats=getActiveCategories();
+  const isTop=expanded.length===0;
+  const totals={};
+  blocks.forEach(b=>{
+    // 在 level2/3 时需要正确归入当前类别
+    if(expanded.length===0){
+      totals[b.group]=(totals[b.group]||0)+b.duration_min;
+    } else if(expanded.length===1){
+      // 如果该标签在活跃分类中，加入它的总时间（含子类）
+      if(activeCats.includes(b.category)){
+        totals[b.category]=(totals[b.category]||0)+b.duration_min;
+      } else if(activeCats.some(a=>hierarchy[a]&&hierarchy[a].includes(b.category))){
+        // block belongs to a child of an active parent
+        const parent=activeCats.find(a=>hierarchy[a]&&hierarchy[a].includes(b.category));
+        if(parent)totals[parent]=(totals[parent]||0)+b.duration_min;
+      }
+    } else {
+      const parent=expanded[1];
+      if(hierarchy[parent]&&hierarchy[parent].includes(b.category)){
+        totals[b.category]=(totals[b.category]||0)+b.duration_min;
+      } else {
+        const cat=data.categories.find(x=>x.name===b.category);
+        if(cat&&cat.group===expanded[0]){
+          if(!hierarchy[parent]||!hierarchy[parent].includes(b.category)){
+            totals[parent]=(totals[parent]||0)+b.duration_min;
+          }
+        }
+      }
+    }
+  });
+  // 二级/三级父级剩余时间
+  if(expanded.length===2){
+    const parent=expanded[1];
+    const children=hierarchy[parent]||[];
+    let childSum=0;children.forEach(ch=>{childSum+=totals[ch]||0});
+    const parentTotal=totals[parent]||0;
+    const diff=Math.round((parentTotal-childSum)/60*10)/10;
+    if(diff>0.05){totals[parent]=diff}else{delete totals[parent]}
+  }
+
+  const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+  const labels=sorted.map(([k])=>k);
+  const values=sorted.map(([,v])=>Math.round(v/60*10)/10);
+  const colors=sorted.map(([k])=>getCategoryColor(k));
+
+  if(pieChart)pieChart.destroy();
+  const ctx=document.getElementById('pieChart').getContext('2d');
+  const totalHours=values.reduce((a,b)=>a+b,0);
+  if(totalHours===0)return;
+
+  pieChart=new Chart(ctx,{
+    type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:colors,borderColor:getComputedStyle(document.documentElement).getPropertyValue('--card').trim(),borderWidth:1}]},
+    plugins:[inOutLabels],
+    options:{
+      responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?1:1.6,
+      cutout:'55%',
+      plugins:{
+        title:{display:true,text:'总分布 · '+totalHours.toFixed(1)+'h',font:{size:11}},
+        tooltip:{callbacks:{label:ctx=>{const p=((ctx.parsed/totalHours)*100).toFixed(1);return ctx.label+': '+ctx.parsed.toFixed(1)+'h ('+p+'%)'}}},
+        legend:{display:false}
+      },
+      onClick:(e,els)=>{
+        if(els.length>0&&expanded.length<2){
+          const label=pieChart.data.labels[els[0].index];
+          if(expanded.length===0){
+            const match=groups.find(g=>g.name===label);
+            if(match&&match.name!=='其他'&&match.name!=='未分类'){
+              expanded=[match.name];updateBreadcrumb();renderAll();return;
+            }
+          } else if(expanded.length===1&&hierarchy[label]&&hierarchy[label].length>0){
+            expanded.push(label);updateBreadcrumb();renderAll();return;
+          }
+        }
+      }
+    }
+  });
+}
+
+// ─── 饼图内外标注插件 ───────────────────────
+const inOutLabels={
+  id:'inOutLabels',
+  afterDraw(chart){
+    const ctx=chart.ctx;
+    const meta=chart.getDatasetMeta(0);
+    if(!meta||!meta.data)return;
+    const cX=chart.chartArea.left+chart.chartArea.width/2;
+    const cY=chart.chartArea.top+chart.chartArea.height/2;
+    const first=meta.data[0];if(!first)return;
+    const oR=first.outerRadius,iR=first.innerRadius,mR=(oR+iR)/2;
+    const labels=chart.data.labels,vals=chart.data.datasets[0].data;
+    const total=vals.reduce((a,b)=>a+b,0);
+    const isM=window.innerWidth<500;
+    const fSize=isM?9:10;
+    ctx.font='bold '+fSize+'px sans-serif';ctx.textBaseline='middle';
+    let startA=-Math.PI/2;const gap=.02;
+    vals.forEach((v,i)=>{
+      if(v/total<.008)return;
+      const sa=(v/total)*2*Math.PI-gap,ma=startA+sa/2;startA+=sa+gap;
+      const txt=labels[i]+' '+v.toFixed(1)+'h';
+      const tw=ctx.measureText(txt).width;
+      if(mR*sa>tw*1.3){
+        const x=cX+mR*Math.cos(ma)-tw/2,y=cY+mR*Math.sin(ma);
+        ctx.save();ctx.shadowColor='rgba(255,255,255,.8)';ctx.shadowBlur=4;
+        ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(x-2,y-fSize/2-1,tw+4,fSize+2);
+        ctx.restore();
+        ctx.fillStyle='#1e293b';ctx.textAlign='left';ctx.fillText(txt,x,y);
+      } else {
+        const ld=oR*1.2,x1=cX+oR*Math.cos(ma),y1=cY+oR*Math.sin(ma);
+        const x2=cX+ld*Math.cos(ma),y2=cY+ld*Math.sin(ma);
+        const ext=isM?40:55,lx=x2+(ma>Math.PI/2&&ma<3*Math.PI/2?-1:1)*ext;
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(lx,y2);
+        ctx.strokeStyle='rgba(148,163,184,0.4)';ctx.lineWidth=.8;ctx.stroke();
+        ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
+        ctx.textAlign=ma>Math.PI/2&&ma<3*Math.PI/2?'right':'left';
+        ctx.fillText(txt,lx+(ma>Math.PI/2&&ma<3*Math.PI/2?-3:3),y2);
+      }
+    });
+  }
+};
+
+// ─── 面包屑 ────────────────────────────────
+function updateBreadcrumb(){
+  const bc=document.getElementById('cat-breadcrumb');
+  const cur=document.getElementById('cat-current');
+  if(expanded.length===0){bc.style.display='none';return}
+  bc.style.display='inline';
+  cur.textContent=' > '+expanded.join(' > ');
+}
+
+// ─── 刷新全部 ──────────────────────────────
+function renderAll(){renderTotal();renderTrend();renderPie()}
+
+// ─── 绑定事件 ──────────────────────────────
+document.querySelectorAll('#range-btns button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#range-btns button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRange=btn.dataset.range;
+    const cust=currentRange==='custom';
+    document.getElementById('date-from').disabled=!cust;
+    document.getElementById('date-to').disabled=!cust;
+    if(!cust){const{f,t}=getComputedRange();document.getElementById('date-from').value=f;document.getElementById('date-to').value=t}
+    else{fromDate=document.getElementById('date-from').value;toDate=document.getElementById('date-to').value}
+    renderTotal();renderTrend();updateSliderBounds();renderPie();
+  });
+});
+document.getElementById('date-from').addEventListener('change',function(){if(currentRange==='custom'){fromDate=this.value;renderTotal();renderTrend();updateSliderBounds();renderPie()}});
+document.getElementById('date-to').addEventListener('change',function(){if(currentRange==='custom'){toDate=this.value;renderTotal();renderTrend();updateSliderBounds();renderPie()}});
+document.querySelectorAll('.dow-cb').forEach(cb=>{cb.addEventListener('change',()=>{renderTotal();renderTrend();updateSliderBounds();renderPie()})});
+function onRC(){const l=parseFloat(document.getElementById('min-hours-low').value),h=parseFloat(document.getElementById('min-hours-high').value);
+  document.getElementById('range-label').textContent=l+'h ~ '+h+'h';
+  if(l>h){document.getElementById('min-hours-low').value=h;document.getElementById('min-hours-high').value=l}
+  renderTrend();renderPie()}
+document.getElementById('min-hours-low').addEventListener('input',onRC);
+document.getElementById('min-hours-high').addEventListener('input',function(){const l=parseFloat(document.getElementById('min-hours-low').value),h=parseFloat(this.value);
+  document.getElementById('range-label').textContent=l+'h ~ '+h+'h';if(h<l){document.getElementById('min-hours-low').value=h;document.getElementById('min-hours-high').value=l}renderTrend();renderPie()});
+
+// 分类层级切换（上层/二级 已废弃为单模式，保留按钮作视觉用）
+document.querySelectorAll('#cat-view-btns button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#cat-view-btns button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    catView=btn.dataset.view;
+    expanded=[];document.getElementById('cat-breadcrumb').style.display='none';
+    renderAll();
+  });
+});
+document.getElementById('cat-back').addEventListener('click',()=>{
+  if(expanded.length>0){expanded.pop();updateBreadcrumb();if(expanded.length===0)document.getElementById('cat-breadcrumb').style.display='none';renderAll()}
+});
+window.addEventListener('resize',renderAll);
+
+// ─── 启动 ──────────────────────────────────
+document.querySelector('#range-btns .active').click();
+})();
+</script>
           onClick:(e,legendItem)=>{
             const meta=trendChart.getDatasetMeta(legendItem.datasetIndex);
             meta.hidden=meta.hidden===null?!trendChart.data.datasets[legendItem.datasetIndex].hidden:!meta.hidden;
