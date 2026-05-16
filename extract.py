@@ -53,39 +53,22 @@ def extract(db_path):
     c = conn.cursor()
 
     # ─────────────────────────────────────────────
-    # 1. 读取分类层级: 分组 → Emoji → 标签
+    # 1. 读取 tag_groups.json 分组配置，建立 tag → group 映射
     # ─────────────────────────────────────────────
-    groups = {}
-    for r in c.execute("SELECT emoji_group_id, group_name FROM C_Emoji_Group").fetchall():
-        groups[r["emoji_group_id"]] = {
-            "id": r["emoji_group_id"],
-            "name": r["group_name"]
-        }
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    tag_groups_path = os.path.join(script_dir, "tag_groups.json")
+    tag_to_group = {}   # tag_name -> {name, color}
+    if os.path.exists(tag_groups_path):
+        with open(tag_groups_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        for gname, ginfo in cfg["groups"].items():
+            for tagname in ginfo["tags"]:
+                tag_to_group[tagname] = {"name": gname, "color": ginfo["color"]}
 
-    emojis = {}
-    for r in c.execute("SELECT emoji_id, emoji, desc, emoji_group FROM C_Emoji").fetchall():
-        gid = r["emoji_group"]
-        emojis[r["emoji_id"]] = {
-            "id": r["emoji_id"],
-            "icon": r["emoji"],
-            "name": r["desc"] or r["emoji"],
-            "group_id": gid,
-            "group_name": groups.get(gid, {}).get("name", "其他") if gid else "其他"
-        }
-
-    tags = {}
-    for r in c.execute("SELECT tag_id, tag_name, tag_color, tag_bg_color FROM C_TAG").fetchall():
-        tags[r["tag_id"]] = {
-            "id": r["tag_id"],
-            "name": r["tag_name"],
-            "color": r["tag_color"],
-            "bg_color": r["tag_bg_color"]
-        }
-
-    # 建立 Tag → Emoji 映射 (通过 EmojiWithTagCrossRef)
-    tag_to_emoji = {}
-    for r in c.execute("SELECT tag_id, emoji_id FROM EmojiWithTagCrossRef").fetchall():
-        tag_to_emoji[r["tag_id"]] = r["emoji_id"]
+    # 从数据库中读取标签列表
+    all_tags = {}
+    for r in c.execute("SELECT tag_id, tag_name FROM C_TAG").fetchall():
+        all_tags[r["tag_id"]] = r["tag_name"]
 
     # 辅助函数: 将毫秒时间戳转为 ISO 周标记
     def _to_week_key(ts_ms):
@@ -116,34 +99,19 @@ def extract(db_path):
 
         duration_min = round(duration_ms / 60000, 1)
 
-        # 解析分类：标签名 = 分类名，Emoji 提供图标和分组
-        category_name = "未分类"
-        category_icon = "📋"
-        group_name = "其他"
-
+        # 解析分类：从 tag_groups.json 映射查找
         tag_id = s["tag_id"]
-        emoji_id = s["emoji_id"]
+        category_name = "未分类"
+        group_name = "其他"
+        group_color = "#94a3b8"
 
-        # 通过 ScheduleWithTagCrossRef → Tag → Emoji (可能)
-        linked_emoji = None
-        if tag_id and tag_id in tag_to_emoji:
-            linked_emoji = tag_to_emoji[tag_id]
-
-        # 以标签名为分类名
-        if tag_id and tag_id in tags:
-            category_name = tags[tag_id]["name"]
-            # 尝试用 Emoji 图标
-            emoji_for_icon = linked_emoji or emoji_id
-            if emoji_for_icon and emoji_for_icon in emojis:
-                cat = emojis[emoji_for_icon]
-                category_icon = cat["icon"]
-                group_name = cat["group_name"]
-        elif emoji_id and emoji_id in emojis:
-            # 没有标签但有直接 Emoji（少数情况）
-            cat = emojis[emoji_id]
-            category_name = cat["name"]
-            category_icon = cat["icon"]
-            group_name = cat["group_name"]
+        if tag_id and tag_id in all_tags:
+            tagname = all_tags[tag_id]
+            category_name = tagname
+            if tagname in tag_to_group:
+                grp = tag_to_group[tagname]
+                group_name = grp["name"]
+                group_color = grp["color"]
         else:
             uncategorized_count += 1
 
@@ -156,8 +124,8 @@ def extract(db_path):
             "title": sanitize(s["schedule_title"] or ""),
             "duration_min": duration_min,
             "category": sanitize(category_name),
-            "icon": category_icon,
-            "group": sanitize(group_name)
+            "group": sanitize(group_name),
+            "group_color": group_color
         })
 
     # ─────────────────────────────────────────────
@@ -169,7 +137,7 @@ def extract(db_path):
         if key not in category_set:
             category_set[key] = {
                 "name": key,
-                "icon": b["icon"],
+                "color": b["group_color"],
                 "group": b["group"]
             }
 
@@ -214,6 +182,13 @@ def extract(db_path):
     # ─────────────────────────────────────────────
     # 5. 组装输出
     # ─────────────────────────────────────────────
+    # 从 blocks 中提取去重的 group 信息
+    group_info = {}
+    for b in blocks:
+        g = b["group"]
+        if g not in group_info:
+            group_info[g] = {"name": g, "color": b["group_color"]}
+
     output = {
         "meta": {
             "generated_at": datetime.now().isoformat(),
@@ -227,6 +202,7 @@ def extract(db_path):
             "zero_duration_skipped": zero_duration_count,
             "source_db_size_mb": round(os.path.getsize(db_path) / 1024 / 1024, 1)
         },
+        "group_info": list(group_info.values()),
         "categories": categories,
         "blocks": blocks,
         "aggregates": {
