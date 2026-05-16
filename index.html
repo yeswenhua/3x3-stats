@@ -8,183 +8,65 @@
 <link rel="manifest" href="manifest.json">
 <title>3X3 时间统计</title>
 <style>
-  :root {
-    --bg: #f8f9fc;
-    --card: #fff;
-    --text: #1e293b;
-    --text2: #64748b;
-    --border: #e2e8f0;
-    --accent: #6366f1;
-    --accent2: #818cf8;
-    --shadow: 0 1px 3px rgba(0,0,0,.08);
-  }
-  @media (prefers-color-scheme:dark) {
-    :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --text: #e2e8f0;
-      --text2: #94a3b8;
-      --border: #334155;
-      --shadow: 0 1px 3px rgba(0,0,0,.3);
-    }
-  }
+:root{--bg:#f8f9fc;--card:#fff;--text:#1e293b;--text2:#64748b;--border:#e2e8f0;--accent:#6366f1;--accent2:#818cf8;--shadow:0 1px 3px rgba(0,0,0,.08);--warn:#ef4444}
+@media(prefers-color-scheme:dark){:root{--bg:#0f172a;--card:#1e293b;--text:#e2e8f0;--text2:#94a3b8;--border:#334155;--shadow:0 1px 3px rgba(0,0,0,.3)}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+.container{max-width:960px;margin:0 auto;padding:16px}
+header{text-align:center;padding:24px 0 16px}
+header h1{font-size:1.5rem;font-weight:700;color:var(--accent);display:flex;align-items:center;justify-content:center;gap:8px}
+header p{color:var(--text2);font-size:.85rem;margin-top:4px}
+#loading{text-align:center;padding:40px;color:var(--text2)}
+#loading.hidden{display:none}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#app.hidden{display:none}
 
-  * { margin:0; padding:0; box-sizing:border-box; }
+/* 统计卡片 */
+#stats-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
+.stat-card{background:var(--card);border-radius:12px;padding:14px;box-shadow:var(--shadow);text-align:center}
+.stat-card .value{font-size:1.4rem;font-weight:700;color:var(--accent)}
+.stat-card .label{font-size:.78rem;color:var(--text2);margin-top:2px}
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    line-height: 1.5;
-  }
+/* 筛选器 */
+.filter-section{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.filter-row:last-child{margin-bottom:0}
+.filter-row label{font-size:.85rem;color:var(--text2);display:flex;align-items:center;gap:4px;cursor:pointer}
+.filter-row input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.filter-section .btn-group{display:flex;gap:4px;flex-wrap:wrap}
+.filter-section .btn-group button{padding:4px 14px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:16px;font-size:.82rem;cursor:pointer;transition:all .15s}
+.filter-section .btn-group button:hover{border-color:var(--accent2);color:var(--accent)}
+.filter-section .btn-group button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.filter-section input[type=date]{padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.82rem}
+.filter-section input[type=range]{accent-color:var(--accent);width:100px}
+.filter-section .range-label{font-size:.82rem;color:var(--text2);min-width:50px}
 
-  .container { max-width: 960px; margin:0 auto; padding: 16px; }
+/* 图表区 */
+.chart-section{background:var(--card);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:var(--shadow)}
+.chart-section h2{font-size:1rem;font-weight:600;margin-bottom:12px;color:var(--text);display:flex;align-items:center;gap:6px}
+.chart-wrapper{position:relative;width:100%}
+.chart-wrapper canvas{width:100%!important}
+.chart-empty{text-align:center;padding:30px;color:var(--text2);font-size:.9rem}
 
-  header {
-    text-align: center;
-    padding: 24px 0 16px;
-  }
-  header h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-  header p {
-    color: var(--text2);
-    font-size: .85rem;
-    margin-top: 4px;
-  }
+/* 分类层级 */
+#cat-level-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#cat-level-row button{padding:4px 14px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:16px;font-size:.82rem;cursor:pointer;transition:all .15s}
+#cat-level-row button:hover{border-color:var(--accent);color:var(--accent)}
+#cat-level-row button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+#cat-breadcrumb{font-size:.82rem;color:var(--text2);display:none}
+#cat-breadcrumb span{margin-left:4px}
+#cat-back{cursor:pointer;color:var(--accent);text-decoration:none;font-weight:600}
 
-  /* 状态栏 */
-  #loading { text-align:center; padding:40px; color:var(--text2); }
-  #loading.hidden { display:none; }
-  .spinner {
-    display: inline-block;
-    width: 24px; height: 24px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .8s linear infinite;
-  }
-  @keyframes spin { to { transform:rotate(360deg) } }
-
-  /* 概览卡片 */
-  #stats-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .stat-card {
-    background: var(--card);
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: var(--shadow);
-    text-align: center;
-  }
-  .stat-card .value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--accent);
-  }
-  .stat-card .label {
-    font-size: .8rem;
-    color: var(--text2);
-    margin-top: 2px;
-  }
-
-  /* 时间粒度选择器 */
-  #period-selector {
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-    margin-bottom: 16px;
-  }
-  #period-selector button {
-    padding: 6px 20px;
-    border: 1px solid var(--border);
-    background: var(--card);
-    color: var(--text2);
-    border-radius: 20px;
-    font-size: .88rem;
-    cursor: pointer;
-    transition: all .2s;
-  }
-  #period-selector button:hover {
-    border-color: var(--accent2);
-    color: var(--accent);
-  }
-  #period-selector button.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-  }
-
-  /* 图表区域 */
-  .chart-section {
-    background: var(--card);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
-    box-shadow: var(--shadow);
-  }
-  .chart-section h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .chart-wrapper {
-    position: relative;
-    width: 100%;
-  }
-  .chart-wrapper canvas { width: 100% !important; }
-
-  /* 图例切换 */
-  .legend-toggle {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-  .legend-toggle .tag {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border-radius: 14px;
-    font-size: .78rem;
-    cursor: pointer;
-    opacity: .85;
-    border: 1px solid transparent;
-    transition: all .15s;
-  }
-  .legend-toggle .tag:hover { opacity: 1; }
-  .legend-toggle .tag.hidden { opacity: .35; text-decoration: line-through; }
-
-  /* 响应式 */
-  @media (max-width: 480px) {
-    .container { padding: 10px; }
-    header h1 { font-size: 1.25rem; }
-    .chart-section { padding: 12px; }
-  }
-
-  #app.hidden { display: none; }
+/* 响应式 */
+@media(max-width:480px){.container{padding:10px}header h1{font-size:1.25rem}.filter-row{gap:6px}.chart-section{padding:12px}}
 </style>
 </head>
 <body>
 
 <div class="container">
   <header>
-    <h1>&#x23F1; 3X3 时间统计</h1>
+    <h1>⏱ 3X3 时间统计</h1>
     <p id="update-info">加载中...</p>
   </header>
 
@@ -193,361 +75,555 @@
   <div id="app" class="hidden">
     <div id="stats-cards"></div>
 
-    <div id="period-selector">
-      <button data-period="weekly" class="active">&#x1F4C5; 按周</button>
-      <button data-period="monthly">&#x1F4C6; 按月</button>
-      <button data-period="yearly">&#x1F5D3; 按年</button>
+    <!-- 筛选区 -->
+    <div class="filter-section" id="filter-date">
+      <div class="filter-row">
+        <div class="btn-group" id="range-btns">
+          <button data-range="this-week" class="active">本周</button>
+          <button data-range="this-month">本月</button>
+          <button data-range="this-year">本年</button>
+          <button data-range="custom">自定义</button>
+        </div>
+        <input type="date" id="date-from" disabled>
+        <span style="color:var(--text2)">~</span>
+        <input type="date" id="date-to" disabled>
+      </div>
     </div>
 
+    <div class="filter-section" id="filter-options">
+      <div class="filter-row">
+        <label title="勾选要显示的星期"><input type="checkbox" class="dow-cb" value="1" checked> 一</label>
+        <label><input type="checkbox" class="dow-cb" value="2" checked> 二</label>
+        <label><input type="checkbox" class="dow-cb" value="3" checked> 三</label>
+        <label><input type="checkbox" class="dow-cb" value="4" checked> 四</label>
+        <label><input type="checkbox" class="dow-cb" value="5" checked> 五</label>
+        <label><input type="checkbox" class="dow-cb" value="6" checked> 六</label>
+        <label><input type="checkbox" class="dow-cb" value="7" checked> 日</label>
+        <span style="color:var(--border);margin:0 4px">|</span>
+        <label><input type="checkbox" id="sat-only"> 仅周六</label>
+      </div>
+      <div class="filter-row">
+        <span class="range-label" style="min-width:auto">最低</span>
+        <input type="range" id="min-hours" min="0" max="24" step="0.5" value="0">
+        <span class="range-label" id="min-label">0h</span>
+        <label><input type="checkbox" id="hide-low"> 隐藏低于阈值的天</label>
+      </div>
+    </div>
+
+    <!-- 分类层级 -->
+    <div class="filter-section" id="filter-cat">
+      <div class="filter-row" id="cat-level-row">
+        <div class="btn-group" id="cat-view-btns">
+          <button data-view="group" class="active">上层分类</button>
+          <button data-view="sub">二级分类</button>
+        </div>
+        <span id="cat-breadcrumb"><a id="cat-back">← 返回上层</a><span id="cat-current"></span></span>
+      </div>
+    </div>
+
+    <!-- 趋势图 -->
     <div class="chart-section">
-      <h2>&#x1F4CA; 时间消耗趋势</h2>
-      <div class="chart-wrapper">
-        <canvas id="trendChart"></canvas>
-      </div>
+      <h2>📊 时间消耗趋势</h2>
+      <div class="chart-wrapper"><canvas id="trendChart"></canvas></div>
+      <div id="trend-empty" class="chart-empty hidden">该时间段暂无数据</div>
     </div>
 
+    <!-- 单日饼图 -->
     <div class="chart-section">
-      <h2>&#x1F967; 分类分布</h2>
-      <div class="chart-wrapper">
-        <canvas id="distChart"></canvas>
+      <h2>🥧 单日分类分布</h2>
+      <div class="filter-row" style="margin-bottom:10px">
+        <label>日期</label>
+        <input type="date" id="pie-date">
+        <label style="margin-left:8px"><input type="checkbox" id="pie-sync" checked> 跟随趋势图日期</label>
       </div>
-    </div>
-
-    <div class="chart-section" id="daily-section" style="display:none">
-      <h2>&#x1F4C6; 日详情</h2>
-      <p style="font-size:.85rem;color:var(--text2);margin-bottom:8px">
-        点击上方趋势图中的数据点查看当日分类详情
-      </p>
-      <div class="chart-wrapper">
-        <canvas id="dailyChart"></canvas>
-      </div>
+      <div class="chart-wrapper"><canvas id="pieChart"></canvas></div>
+      <div id="pie-empty" class="chart-empty hidden">选择日期查看分布</div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
-(async function() {
-  'use strict';
+(async function(){
+'use strict';
 
-  let data = null;
-  let currentPeriod = 'weekly';
-  let trendChart = null;
-  let distChart = null;
-  let dailyChart = null;
-  let clickedDate = null;
+// ─── 状态 ────────────────────────────────────
+let data = null;
+let trendChart = null, pieChart = null;
+let currentRange = 'this-week';
+let fromDate = '', toDate = '';
+let catView = 'group'; // 'group' | 'sub'
+let expandedGroup = null; // 展开某个上级分类时的组名
+let selPieDate = '';
 
-  // ─── 加载数据 ───────────────────────────────
-  try {
-    const resp = await fetch('data/stats.json');
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    data = await resp.json();
-  } catch (e) {
-    document.getElementById('loading').innerHTML =
-      '<p style="color:#ef4444;font-size:1.1rem">&#x26A0; 加载失败</p>' +
-      '<p style="font-size:.85rem;color:var(--text2)">请确保 data/stats.json 文件存在</p>';
-    return;
-  }
+const colorPool = [
+  '#6366f1','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6',
+  '#f97316','#84cc16','#3b82f6','#a855f7','#e11d48','#0ea5e9','#10b981','#f43f5e',
+  '#d946ef','#0d9488','#eab308','#4ade80','#fb923c','#a78bfa','#2dd4bf','#fbbf24',
+  '#34d399','#f87171','#818cf8','#a3e635','#f472b6','#67e8f9'
+];
+const groupColors = { '运动':'#22c55e','日常':'#f59e0b','其他':'#94a3b8' };
+const catColors = {};
 
-  // ─── 渲染页面 ───────────────────────────────
+// ─── 数据加载 ────────────────────────────────
+try {
+  const resp = await fetch('data/stats.json');
+  if (!resp.ok) throw new Error('HTTP '+resp.status);
+  data = await resp.json();
+} catch(e){
+  document.getElementById('loading').innerHTML='<p style="color:#ef4444">⚠ 加载失败</p><p style="font-size:.85rem;color:var(--text2)">请确保 data/stats.json 存在</p>';
+  return;
+}
 
-  const m = data.meta;
-  document.getElementById('update-info').textContent =
-    '更新于 ' + m.generated_at.slice(0, 10) + ' · ' +
-    '共计 ' + m.total_hours + ' 小时 · ' +
-    '数据范围 ' + m.date_range.from + ' ~ ' + m.date_range.to;
+// ─── 工具函数 ────────────────────────────────
+function pad2(n){return n<10?'0'+n:''+n}
+function dateStr(d){return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())}
+function getDow(w){const d=new Date(w+'T00:00:00');const r=d.getDay();return r===0?7:r}
+function isToday(d){const n=new Date();return dateStr(n)===d}
 
+// ─── 初始化顏色 ──────────────────────────────
+data.blocks.forEach(b=>{if(!catColors[b.category])catColors[b.category]=colorPool[Object.keys(catColors).length%colorPool.length]})
+
+// ─── 构建分类层级 ────────────────────────────
+let groups = [];
+(function buildGroups(){
+  const gmap = {};
+  data.blocks.forEach(b=>{
+    if(!gmap[b.group])gmap[b.group]={name:b.group,icon:b.icon,cats:{},total:0};
+    if(!gmap[b.group].cats[b.category])gmap[b.group].cats[b.category]={name:b.category,icon:b.icon,mins:0};
+    gmap[b.group].cats[b.category].mins+=b.duration_min;
+    gmap[b.group].total+=b.duration_min;
+  });
+  groups = Object.values(gmap).sort((a,b)=>b.total-a.total);
+  // 保证 运动/日常/其他 排序
+  const order = ['运动','日常','其他'];
+  groups.sort((a,b)=>{const ia=order.indexOf(a.name),ib=order.indexOf(b.name);return (ia===-1?99:ia)-(ib===-1?99:ib)});
+  groups.forEach(g=>{g.cats=Object.values(g.cats).sort((a,b)=>b.mins-a.mins)});
+})();
+
+// ─── 渲染概览 ────────────────────────────────
+(function initUI(){
+  const m=data.meta;
+  document.getElementById('update-info').textContent='更新于 '+m.generated_at.slice(0,10)+' · 共 '+m.total_hours+' 小时 · '+m.date_range.from+' ~ '+m.date_range.to;
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  document.getElementById('stats-cards').innerHTML=
+    '<div class="stat-card"><div class="value">'+m.total_hours+'h</div><div class="label">总时长</div></div>'+
+    '<div class="stat-card"><div class="value">'+m.total_blocks+'</div><div class="label">记录</div></div>'+
+    '<div class="stat-card"><div class="value">'+groups.length+'</div><div class="label">上层分类</div></div>'+
+    '<div class="stat-card"><div class="value">'+data.categories.length+'</div><div class="label">全部分类</div></div>';
+  // 日期输入范围
+  document.getElementById('date-from').min=m.date_range.from;document.getElementById('date-from').max=m.date_range.to;
+  document.getElementById('date-from').value=m.date_range.from;
+  document.getElementById('date-to').min=m.date_range.from;document.getElementById('date-to').max=m.date_range.to;
+  document.getElementById('date-to').value=m.date_range.to;
+  // 饼图日期
+  selPieDate=m.date_range.to; document.getElementById('pie-date').value=m.date_range.to;
+})();
 
-  // 概览卡片
-  const cards = document.getElementById('stats-cards');
-  const hoursPerDay = (m.total_hours / (m.total_blocks || 1) * 10 || 0).toFixed(0);
-  cards.innerHTML =
-    '<div class="stat-card"><div class="value">' + m.total_hours + 'h</div><div class="label">总时长</div></div>' +
-    '<div class="stat-card"><div class="value">' + m.total_blocks + '</div><div class="label">记录条数</div></div>' +
-    '<div class="stat-card"><div class="value">' + data.categories.length + '</div><div class="label">分类数</div></div>' +
-    '<div class="stat-card"><div class="value">' + (m.total_hours / 24).toFixed(1) + '天</div><div class="label">合整天数</div></div>';
+// ─── 获取当前筛选后的数据 ───────────────────
+function getComputedRange(){
+  if(currentRange==='this-week'){
+    const now=new Date(); const d=now.getDay()||7;
+    const mon=new Date(now); mon.setDate(now.getDate()-d+1);
+    const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+    return {f:dateStr(mon),t:dateStr(sun)};
+  }
+  if(currentRange==='this-month'){
+    const now=new Date();
+    return {f:now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-01',t:dateStr(now)};
+  }
+  if(currentRange==='this-year'){
+    const now=new Date();
+    return {f:now.getFullYear()+'-01-01',t:dateStr(now)};
+  }
+  return {f:fromDate,t:toDate};
+}
 
-  // ─── 分类颜色表 ───────────────────────────────
+function getFilteredDays(){
+  let blocks = data.blocks.slice();
 
-  const catColors = {};
-  const colorPool = [
-    '#6366f1','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899',
-    '#14b8a6','#f97316','#84cc16','#3b82f6','#a855f7','#e11d48','#0ea5e9',
-    '#10b981','#f43f5e','#8b5cf6','#d946ef','#0d9488','#eab308','#4ade80',
-    '#fb923c','#a78bfa','#2dd4bf','#fbbf24','#34d399','#f87171','#818cf8',
-    '#a3e635','#7dd3fc','#f472b6','#67e8f9'
-  ];
-  data.categories.forEach((c, i) => {
-    catColors[c.name] = colorPool[i % colorPool.length];
+  // 日期范围
+  if(currentRange!=='all'){
+    const {f,t}=getComputedRange();
+    fromDate=f; toDate=t;
+    blocks=blocks.filter(b=>b.date>=f&&b.date<=t);
+  }
+
+  // 星期筛选
+  const satOnly=document.getElementById('sat-only').checked;
+  const dows=[];
+  if(satOnly){dows.push(6)}
+  else{document.querySelectorAll('.dow-cb:checked').forEach(cb=>dows.push(parseInt(cb.value)))}
+  if(dows.length<7)blocks=blocks.filter(b=>dows.includes(getDow(b.date)));
+
+  // 按天聚合
+  const days={};
+  blocks.forEach(b=>{
+    if(!days[b.date])days[b.date]={categories:{},total:0,group:{}};
+    if(!days[b.date].categories[b.category])days[b.date].categories[b.category]=0;
+    days[b.date].categories[b.category]+=b.duration_min;
+    days[b.date].total+=b.duration_min;
+    days[b.date].group[b.group]=1;
   });
 
-  // ─── 时间周期切换 ────────────────────────────
+  // 阈值过滤
+  const minH=parseFloat(document.getElementById('min-hours').value);
+  const hideLow=document.getElementById('hide-low').checked;
+  const dates=Object.keys(days).sort();
+  return dates.map(d=>{
+    const day=days[d];
+    const hours=Math.round(day.total/60*10)/10;
+    const below=hideLow&&hours<minH;
+    return {date:d,day,hours,below};
+  }).filter(d=>!d.below);
+}
 
-  document.getElementById('period-selector').addEventListener('click', e => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    currentPeriod = btn.dataset.period;
-    document.querySelectorAll('#period-selector button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderTrend();
-    renderDist();
-  });
-
-  // ─── 趋势图 ─────────────────────────────────
-
-  function getSortedCats() {
-    const totals = {};
-    data.blocks.forEach(b => {
-      totals[b.category] = (totals[b.category] || 0) + b.duration_min;
-    });
-    return Object.entries(totals)
-      .sort((a, b) => b[1] - a[1])
-      .map(([name]) => name)
-      .slice(0, 12);
-  }
-
-  function renderTrend() {
-    const agg = data.aggregates[currentPeriod];
-    const topCats = getSortedCats();
-    const labels = agg.map(a => a.key);
-    const datasets = topCats.map(catName => {
-      const cat = data.categories.find(c => c.name === catName);
-      const values = agg.map(a => Math.round((a.categories[catName] || 0) / 60 * 10) / 10);
-      return {
-        label: cat ? (cat.icon + ' ' + cat.name) : catName,
-        data: values,
-        borderColor: catColors[catName],
-        backgroundColor: catColors[catName] + '20',
-        tension: 0.3,
-        pointRadius: currentPeriod === 'yearly' ? 4 : (currentPeriod === 'monthly' ? 3 : 2),
-        pointHoverRadius: 6,
-        fill: false,
-        hidden: false
-      };
-    });
-
-    // 累计总量线
-    const totalValues = agg.map(a => Math.round(a.total / 60 * 10) / 10);
-    datasets.push({
-      label: '📊 总计',
-      data: totalValues,
-      borderColor: 'rgba(148,163,184,.5)',
-      backgroundColor: 'transparent',
-      borderDash: [5, 3],
-      borderWidth: 1.5,
-      tension: .3,
-      pointRadius: 0,
-      order: 1,
-      hidden: false
-    });
-
-    // 周期标签翻译
-    const periodLabel = { weekly: '周', monthly: '月', yearly: '年' }[currentPeriod];
-
-    if (trendChart) trendChart.destroy();
-    const ctx = document.getElementById('trendChart').getContext('2d');
-    trendChart = new Chart(ctx, {
-      type: 'line',
-      data: { labels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        aspectRatio: window.innerWidth < 500 ? 1.2 : 2,
-        interaction: { mode: 'index', intersect: false },
-        onClick: (e, elements) => {
-          if (elements.length > 0) {
-            const idx = elements[0].index;
-            clickedDate = labels[idx];
-            renderDaily();
-            document.getElementById('daily-section').style.display = '';
-            document.getElementById('daily-section').scrollIntoView({ behavior: 'smooth' });
-          }
-        },
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + 'h'
-            }
-          },
-          legend: {
-            position: 'bottom',
-            labels: {
-              boxWidth: 12,
-              boxHeight: 12,
-              padding: 10,
-              font: { size: 11 },
-              usePointStyle: true,
-              color: getComputedStyle(document.documentElement).getPropertyValue('--text').trim()
-            }
-          }
-        },
-        scales: {
-          x: {
-            title: { display: true, text: periodLabel, font: { size: 12 } },
-            ticks: { font: { size: 10 }, maxTicksLimit: 15 },
-            grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() }
-          },
-          y: {
-            title: { display: true, text: '小时', font: { size: 12 } },
-            beginAtZero: true,
-            ticks: { font: { size: 10 }, callback: v => v + 'h' },
-            grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() }
-          }
-        }
-      }
-    });
-  }
-
-  // ─── 分布图 ─────────────────────────────────
-
-  function renderDist() {
-    const agg = data.aggregates[currentPeriod];
-    const totals = {};
-    agg.forEach(a => {
-      Object.entries(a.categories).forEach(([cat, mins]) => {
-        totals[cat] = (totals[cat] || 0) + mins;
-      });
-    });
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-    const top = sorted.slice(0, 10);
-    const others = sorted.slice(10).reduce((s, [, v]) => s + v, 0);
-    if (others > 0) top.push(['其他', others]);
-
-    const catList = data.categories;
-    const labels = top.map(([name]) => {
-      const c = catList.find(cc => cc.name === name);
-      return c ? c.icon + ' ' + name : name;
-    });
-    const values = top.map(([, v]) => Math.round(v / 60 * 10) / 10);
-
-    if (distChart) distChart.destroy();
-    const ctx = document.getElementById('distChart').getContext('2d');
-    distChart = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          backgroundColor: top.map(([name]) => catColors[name] || '#94a3b8'),
-          borderColor: 'transparent',
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        aspectRatio: window.innerWidth < 500 ? 1 : 1.4,
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                const pct = ((ctx.parsed / total) * 100).toFixed(1);
-                return ctx.label + ': ' + ctx.parsed.toFixed(1) + 'h (' + pct + '%)';
-              }
-            }
-          },
-          legend: {
-            position: 'bottom',
-            labels: {
-              boxWidth: 12,
-              boxHeight: 12,
-              padding: 8,
-              font: { size: 10 },
-              usePointStyle: true,
-              color: getComputedStyle(document.documentElement).getPropertyValue('--text').trim()
-            }
-          }
-        }
-      }
-    });
-  }
-
-  // ─── 日详情图 ────────────────────────────────
-
-  function renderDaily() {
-    if (!clickedDate) return;
-
-    const field = { weekly: 'week', monthly: 'month', yearly: 'year' }[currentPeriod] || 'date';
-    let dateBlocks = data.blocks.filter(b => b[field] === clickedDate);
-
-    const titleText = dateBlocks.length > 0
-      ? '📅 ' + clickedDate + ' 详情 (' + dateBlocks.length + ' 条记录)'
-      : '📅 ' + clickedDate + ' (无数据)';
-    document.getElementById('daily-section').querySelector('h2').textContent = titleText;
-
-    if (dateBlocks.length === 0) {
-      if (dailyChart) { dailyChart.destroy(); dailyChart = null; }
-      return;
+// ─── 获取分类当前层级列表 ───────────────────
+function getActiveCategories(){
+  if(catView==='group'){
+    if(expandedGroup){
+      const g=groups.find(x=>x.name===expandedGroup);
+      return g?g.cats.map(c=>c.name):[];
     }
+    return groups.map(g=>g.name);
+  }
+  // 二级分类: 所有 tags
+  return data.categories.map(c=>c.name).sort();
+}
 
-    const catTotals = {};
-    dateBlocks.forEach(b => {
-      catTotals[b.category] = (catTotals[b.category] || 0) + b.duration_min;
+function getCategoryDisplayName(catName){
+  const c=data.categories.find(x=>x.name===catName);
+  return c?c.icon+' '+catName:catName;
+}
+
+function getGroupDisplayName(gName){
+  const g=groups.find(x=>x.name===gName);
+  return g?g.icon+' '+gName:gName;
+}
+
+function getCategoryColor(catName){
+  // group view: use group color
+  if(catView==='group'){
+    if(expandedGroup)return catColors[catName]||'#94a3b8';
+    return groupColors[catName]||'#94a3b8';
+  }
+  return catColors[catName]||'#94a3b8';
+}
+
+// ─── 渲染趋势图 ──────────────────────────────
+function renderTrend(){
+  const days=getFilteredDays();
+  if(days.length===0){
+    document.getElementById('trend-empty').classList.remove('hidden');
+    if(trendChart){trendChart.destroy();trendChart=null}
+    document.querySelector('#trendChart').style.display='none';
+    return;
+  }
+  document.getElementById('trend-empty').classList.add('hidden');
+  document.querySelector('#trendChart').style.display='';
+
+  const labels=days.map(d=>d.date);
+  const activeCats=getActiveCategories();
+
+  const datasets = activeCats.map(catName=>{
+    const isGroupView=catView==='group'&&!expandedGroup;
+    const values=days.map(d=>{
+      let mins=0;
+      if(isGroupView){
+        // group view: sum all sub-categories under this group
+        const g=groups.find(x=>x.name===catName);
+        if(g)Object.entries(d.day.categories).forEach(([c,m])=>{
+          const cat=data.categories.find(x=>x.name===c);
+          if(cat&&cat.group===g.name)mins+=m;
+        });
+      } else {
+        mins=d.day.categories[catName]||0;
+      }
+      return Math.round(mins/60*10)/10;
     });
-    const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
-    const labels = sorted.map(([name]) => name);
-    const values = sorted.map(([, mins]) => Math.round(mins / 60 * 100) / 100);
-    const colors = sorted.map(([name]) => catColors[name] || '#94a3b8');
+    return {
+      label: getCategoryDisplayName(catName),
+      data: values,
+      backgroundColor: getCategoryColor(catName),
+      hoverBackgroundColor: getCategoryColor(catName),
+      borderRadius: 2,
+      borderWidth: 0
+    };
+  });
 
-    if (dailyChart) dailyChart.destroy();
-    const ctx = document.getElementById('dailyChart').getContext('2d');
+  if(trendChart)trendChart.destroy();
+  const ctx=document.getElementById('trendChart').getContext('2d');
 
-    dailyChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: '小时',
-          data: values,
-          backgroundColor: colors,
-          borderRadius: 6,
-          borderWidth: 0
-        }]
+  // 自定义插件：低活跃日标记灰色背景
+  const grayBgPlugin = {
+    id: 'grayBg',
+    beforeDraw(c){
+      const minH=parseFloat(document.getElementById('min-hours').value);
+      const hideLow=document.getElementById('hide-low').checked;
+      if(!hideLow||minH===0)return;
+      const meta=c.getDatasetMeta(0);
+      if(!meta||!meta.data)return;
+      const chartArea=c.chartArea;
+      const ctx2=c.ctx;
+      meta.data.forEach((bar,i)=>{
+        const day=days[i];
+        if(day&&day.hours<minH){
+          ctx2.fillStyle='rgba(148,163,184,0.12)';
+          ctx2.fillRect(bar.x-bar.width/2,chartArea.top,bar.width,chartArea.bottom-chartArea.top);
+        }
+      });
+    }
+  };
+
+  trendChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets},
+    plugins:[grayBgPlugin],
+    options:{
+      responsive:true,
+      maintainAspectRatio:true,
+      aspectRatio:window.innerWidth<500?1.2:2,
+      interaction:{mode:'index',intersect:false},
+      onClick:(e,els)=>{
+        if(els.length>0){
+          const d=labels[els[0].index];
+          const dsIdx=els[0].datasetIndex;
+          const dsLabel=trendChart.data.datasets[dsIdx].label;
+
+          // group view + not expanded → try drill-down
+          if(catView==='group'&&!expandedGroup){
+            const groupNames=groups.map(g=>g.name);
+            const match=groupNames.find(n=>dsLabel.includes(n));
+            if(match&&match!=='其他'){
+              expandedGroup=match;
+              document.getElementById('cat-breadcrumb').style.display='inline';
+              document.getElementById('cat-current').textContent=' > '+getGroupDisplayName(match);
+              renderAll();
+              return;
+            }
+          }
+
+          // 设置饼图日期
+          document.getElementById('pie-date').value=d;
+          selPieDate=d;
+          renderPie();
+        }
       },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => ctx.parsed.y.toFixed(2) + 'h'
+      scales:{
+        x:{
+          stacked:true,
+          ticks:{font:{size:10},maxTicksLimit:20},
+          grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}
+        },
+        y:{
+          stacked:true,
+          beginAtZero:true,
+          title:{display:true,text:'小时',font:{size:12}},
+          ticks:{font:{size:10},callback:v=>v+'h'},
+          grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}
+        }
+      },
+      plugins:{
+        tooltip:{
+          mode:'index',
+          callbacks:{
+            title:items=>items[0].label,
+            label:ctx=>ctx.dataset.label+': '+ctx.parsed.y.toFixed(1)+'h',
+            afterBody:items=>{
+              const d=labels[items[0].dataIndex];
+              const day=days.find(x=>x.date===d);
+              return day?'当日总计: '+day.hours.toFixed(1)+'h':'';
             }
           }
         },
-        scales: {
-          x: {
-            ticks: { font: { size: 9 }, maxRotation: 45 },
-            grid: { display: false }
+        legend:{
+          position:'bottom',
+          labels:{
+            boxWidth:12,boxHeight:12,padding:8,font:{size:10},
+            usePointStyle:true,
+            color:getComputedStyle(document.documentElement).getPropertyValue('--text').trim()
           },
-          y: {
-            beginAtZero: true,
-            ticks: { callback: v => v + 'h', font: { size: 10 } }
+          onClick:(e,legendItem)=>{
+            const idx=legendItem.datasetIndex;
+            const ci=trendChart;
+            const meta=ci.getDatasetMeta(idx);
+            meta.hidden=meta.hidden===null?!ci.data.datasets[idx].hidden:!meta.hidden;
+            ci.update();
           }
         }
       }
-    });
-  }
-
-  // ─── 初始渲染 ────────────────────────────────
-
-  renderTrend();
-  renderDist();
-
-  window.addEventListener('resize', () => {
-    renderTrend();
-    renderDist();
+    }
   });
+}
+
+// ─── 渲染饼图 ────────────────────────────────
+function renderPie(){
+  if(!selPieDate){
+    document.getElementById('pie-empty').classList.remove('hidden');
+    if(pieChart){pieChart.destroy();pieChart=null}
+    document.querySelector('#pieChart').style.display='none';
+    return;
+  }
+  const blocks=data.blocks.filter(b=>b.date===selPieDate);
+  if(blocks.length===0){
+    document.getElementById('pie-empty').classList.remove('hidden');
+    if(pieChart){pieChart.destroy();pieChart=null}
+    document.querySelector('#pieChart').style.display='none';
+    return;
+  }
+  document.getElementById('pie-empty').classList.add('hidden');
+  document.querySelector('#pieChart').style.display='';
+
+  const totals={};
+  blocks.forEach(b=>{
+    const showGroup=catView==='group'&&!expandedGroup;
+    const key=showGroup?b.group:b.category;
+    totals[key]=(totals[key]||0)+b.duration_min;
+  });
+  const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+  const labels=sorted.map(([k])=>getCategoryDisplayName(k));
+  const values=sorted.map(([,v])=>Math.round(v/60*10)/10);
+  const colors=sorted.map(([k])=>getCategoryColor(k));
+
+  if(pieChart)pieChart.destroy();
+  const ctx=document.getElementById('pieChart').getContext('2d');
+  const totalHours=values.reduce((a,b)=>a+b,0);
+
+  pieChart=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels,datasets:[{
+        data:values,
+        backgroundColor:colors,
+        borderColor:'transparent',borderWidth:0
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:true,
+      aspectRatio:window.innerWidth<500?1:1.4,
+      plugins:{
+        title:{display:true,text:selPieDate+' · 共 '+totalHours.toFixed(1)+'h',font:{size:12}},
+        tooltip:{
+          callbacks:{
+            label:ctx=>{
+              const pct=((ctx.parsed/totalHours)*100).toFixed(1);
+              return ctx.label+': '+ctx.parsed.toFixed(1)+'h ('+pct+'%)';
+            }
+          }
+        },
+        legend:{
+          position:'bottom',
+          labels:{
+            boxWidth:12,boxHeight:12,padding:8,font:{size:10},
+            usePointStyle:true,
+            color:getComputedStyle(document.documentElement).getPropertyValue('--text').trim()
+          }
+        }
+      }
+    }
+  });
+}
+
+// ─── 刷新全部 ────────────────────────────────
+function renderAll(){renderTrend();renderPie()}
+
+// ─── 绑定事件 ────────────────────────────────
+
+// 日期范围按钮
+document.querySelectorAll('#range-btns button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#range-btns button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRange=btn.dataset.range;
+    const cust=currentRange==='custom';
+    document.getElementById('date-from').disabled=!cust;
+    document.getElementById('date-to').disabled=!cust;
+
+    // 显示当前计算范围
+    if(!cust){
+      const {f,t}=getComputedRange();
+      if(btn.dataset.range!=='custom'){document.getElementById('date-from').value=f;document.getElementById('date-to').value=t}
+    } else {
+      fromDate=document.getElementById('date-from').value;toDate=document.getElementById('date-to').value;
+    }
+    renderTrend();
+    if(document.getElementById('pie-sync').checked){
+      const days=getFilteredDays();
+      if(days.length>0){selPieDate=days[days.length-1].date;document.getElementById('pie-date').value=selPieDate;renderPie()}
+    }
+  });
+});
+
+// 自定义日期
+document.getElementById('date-from').addEventListener('change',function(){if(currentRange==='custom'){fromDate=this.value;renderTrend()}});
+document.getElementById('date-to').addEventListener('change',function(){if(currentRange==='custom'){toDate=this.value;renderTrend()}});
+
+// 星期筛选
+document.querySelectorAll('.dow-cb').forEach(cb=>{
+  cb.addEventListener('change',()=>{
+    const satOnly=document.getElementById('sat-only');
+    if(satOnly.checked)return;
+    renderTrend();
+  });
+});
+document.getElementById('sat-only').addEventListener('change',function(){
+  document.querySelectorAll('.dow-cb').forEach(cb=>{cb.disabled=this.checked});
+  renderTrend();
+});
+
+// 阈值
+document.getElementById('min-hours').addEventListener('input',function(){
+  document.getElementById('min-label').textContent=this.value+'h';
+  renderTrend();
+});
+document.getElementById('hide-low').addEventListener('change',renderTrend);
+
+// 分类视图切换
+document.querySelectorAll('#cat-view-btns button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#cat-view-btns button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    catView=btn.dataset.view;
+    expandedGroup=null;
+    document.getElementById('cat-breadcrumb').style.display='none';
+    renderAll();
+  });
+});
+
+// 返回上层
+document.getElementById('cat-back').addEventListener('click',()=>{
+  expandedGroup=null;
+  document.getElementById('cat-breadcrumb').style.display='none';
+  renderAll();
+});
+
+// 饼图日期
+document.getElementById('pie-date').addEventListener('change',function(){
+  selPieDate=this.value;
+  document.getElementById('pie-sync').checked=false;
+  renderPie();
+});
+document.getElementById('pie-sync').addEventListener('change',function(){
+  if(this.checked){
+    const days=getFilteredDays();
+    if(days.length>0){selPieDate=days[days.length-1].date;document.getElementById('pie-date').value=selPieDate;renderPie()}
+  }
+});
+
+// 窗口 resize
+window.addEventListener('resize',renderAll);
+
+// ─── 首次渲染 ────────────────────────────────
+// trigger initial date range
+document.querySelector('#range-btns .active').click();
+
 })();
 </script>
 
-<!-- PWA 注册 -->
 <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
-  }
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 
 </body>
