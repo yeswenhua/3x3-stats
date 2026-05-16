@@ -12,114 +12,151 @@
 @media(prefers-color-scheme:dark){:root{--bg:#0f172a;--card:#1e293b;--text:#e2e8f0;--text2:#94a3b8;--border:#334155;--shadow:0 1px 3px rgba(0,0,0,.3)}}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
-.container{max-width:960px;margin:0 auto;padding:16px}
-header{text-align:center;padding:20px 0 12px}
-header h1{font-size:1.4rem;font-weight:700;color:var(--accent);display:flex;align-items:center;justify-content:center;gap:8px}
-header p{color:var(--text2);font-size:.82rem;margin-top:4px}
+
+/* 布局: 桌面双栏 */
+.app-layout{display:flex;gap:16px;align-items:flex-start;max-width:1200px;margin:0 auto;padding:16px}
+.sidebar{width:300px;flex-shrink:0;position:sticky;top:16px;max-height:calc(100vh-32px);overflow-y:auto}
+.main{flex:1;min-width:0}
+
+/* 移动端单栏 */
+@media(max-width:768px){
+  .app-layout{flex-direction:column;padding:10px}
+  .sidebar{width:100%;position:static;max-height:none}
+}
+
+header{text-align:center;padding:16px 0 10px}
+header h1{font-size:1.3rem;font-weight:700;color:var(--accent)}
+header p{color:var(--text2);font-size:.8rem;margin-top:2px}
 #loading{text-align:center;padding:40px;color:var(--text2)}
 #loading.hidden{display:none}
 .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 #app.hidden{display:none}
-#stats-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:12px}
-.stat-card{background:var(--card);border-radius:10px;padding:12px;box-shadow:var(--shadow);text-align:center}
-.stat-card .value{font-size:1.3rem;font-weight:700;color:var(--accent)}
-.stat-card .label{font-size:.75rem;color:var(--text2);margin-top:2px}
+
+/* 统计卡片 */
+#stats-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px}
+.stat-card{background:var(--card);border-radius:10px;padding:10px;box-shadow:var(--shadow);text-align:center}
+.stat-card .value{font-size:1.2rem;font-weight:700;color:var(--accent)}
+.stat-card .label{font-size:.72rem;color:var(--text2);margin-top:2px}
+
+/* 侧边栏筛选 */
 .filter-section{background:var(--card);border-radius:10px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
-.filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}
+.filter-section h3{font-size:.85rem;font-weight:600;color:var(--text);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:6px;font-size:.8rem}
 .filter-row:last-child{margin-bottom:0}
-.filter-row label{font-size:.82rem;color:var(--text2);display:flex;align-items:center;gap:3px;cursor:pointer}
-.filter-row input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px}
-.btn-group{display:flex;gap:4px;flex-wrap:wrap}
-.btn-group button{padding:3px 12px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:14px;font-size:.8rem;cursor:pointer;transition:all .15s}
+.filter-row label{color:var(--text2);display:flex;align-items:center;gap:3px;cursor:pointer;font-size:.78rem}
+.filter-row input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px}
+.btn-group{display:flex;gap:3px;flex-wrap:wrap}
+.btn-group button{padding:3px 10px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:12px;font-size:.75rem;cursor:pointer;transition:all .15s}
 .btn-group button:hover{border-color:var(--accent2);color:var(--accent)}
 .btn-group button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-input[type=date]{padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.8rem}
-input[type=range]{accent-color:var(--accent);width:90px;height:4px;vertical-align:middle}
-.range-label{font-size:.8rem;color:var(--text2)}
-.chart-section{background:var(--card);border-radius:10px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
-.chart-section h2{font-size:.95rem;font-weight:600;margin-bottom:8px;color:var(--text);display:flex;align-items:center;gap:6px}
+input[type=date]{padding:2px 5px;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:.75rem}
+input[type=range]{accent-color:var(--accent);width:80px;height:3px;vertical-align:middle}
+.range-label{font-size:.78rem;color:var(--text2);min-width:60px}
+
+/* 图表区 */
+.main .chart-section{background:var(--card);border-radius:10px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
+.main .chart-section h2{font-size:.9rem;font-weight:600;margin-bottom:6px;color:var(--text)}
 .chart-wrapper{position:relative;width:100%}
 .chart-wrapper canvas{width:100%!important}
-.chart-section+.chart-section .chart-wrapper{padding-top:4px}
-#cat-level-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-#cat-level-row button{padding:3px 12px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:14px;font-size:.8rem;cursor:pointer;transition:all .15s}
+
+/* 饼图容器限制 */
+#pie-wrapper{max-width:400px;margin:0 auto}
+
+#cat-level-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+#cat-level-row button{padding:2px 10px;border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:12px;font-size:.75rem;cursor:pointer}
 #cat-level-row button:hover{border-color:var(--accent);color:var(--accent)}
 #cat-level-row button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-#cat-breadcrumb{font-size:.8rem;color:var(--text2);display:none}
+#cat-breadcrumb{font-size:.78rem;color:var(--text2);display:none}
 #cat-back{cursor:pointer;color:var(--accent);text-decoration:none;font-weight:600}
-#cat-current{font-size:.8rem}
-@media(max-width:480px){.container{padding:8px}header h1{font-size:1.2rem}.filter-row{gap:4px}.chart-section{padding:10px}}
-.fake-select{padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.8rem;cursor:pointer}
 </style>
 </head>
 <body>
 <div class="container">
-  <header><h1>⏱ 3X3 时间统计</h1><p id="update-info">加载中...</p></header>
+  <header><h1>⏱ 3X3 时间统计</h1><p id="update-info">加载中...</p></div>
   <div id="loading"><div class="spinner"></div><p style="margin-top:10px">正在加载数据...</p></div>
   <div id="app" class="hidden">
-    <div id="stats-cards"></div>
+    <div class="app-layout">
+      <!-- 侧边栏 -->
+      <div class="sidebar">
+        <div id="stats-cards"></div>
 
-    <!-- 日期 & 筛选项 -->
-    <div class="filter-section">
-      <div class="filter-row">
-        <div class="btn-group" id="range-btns">
-          <button data-range="this-week">本周</button>
-          <button data-range="this-month">本月</button>
-          <button data-range="this-year">本年</button>
-          <button data-range="all">All</button>
-          <button data-range="custom">自定义</button>
+        <div class="filter-section">
+          <h3>📅 时间范围</h3>
+          <div class="filter-row">
+            <div class="btn-group" id="range-btns">
+              <button data-range="this-week">本周</button>
+              <button data-range="this-month">本月</button>
+              <button data-range="this-year">本年</button>
+              <button data-range="all">All</button>
+              <button data-range="custom">自定</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <input type="date" id="date-from" disabled style="flex:1;min-width:0">
+            <span style="color:var(--text2)">~</span>
+            <input type="date" id="date-to" disabled style="flex:1;min-width:0">
+          </div>
         </div>
-        <input type="date" id="date-from" disabled>
-        <span style="color:var(--text2);font-size:.8rem">~</span>
-        <input type="date" id="date-to" disabled>
-      </div>
-      <div class="filter-row">
-        <label><input type="checkbox" class="dow-cb" value="1" checked>一</label>
-        <label><input type="checkbox" class="dow-cb" value="2" checked>二</label>
-        <label><input type="checkbox" class="dow-cb" value="3" checked>三</label>
-        <label><input type="checkbox" class="dow-cb" value="4" checked>四</label>
-        <label><input type="checkbox" class="dow-cb" value="5" checked>五</label>
-        <label><input type="checkbox" class="dow-cb" value="6" checked>六</label>
-        <label><input type="checkbox" class="dow-cb" value="7" checked>日</label>
-        <span style="color:var(--border);margin:0 4px;font-size:.8rem">|</span>
-        <span style="font-size:.78rem;color:var(--text2)">标签显示范围</span>
-        <input type="range" id="min-hours-low" min="0" max="24" step="0.5" value="0">
-        <span class="range-label" id="range-label">0h ~ 24h</span>
-        <input type="range" id="min-hours-high" min="0" max="24" step="0.5" value="24">
-      </div>
-    </div>
 
-    <!-- 分类层级 -->
-    <div class="filter-section">
-      <div class="filter-row" id="cat-level-row">
-        <div class="btn-group" id="cat-view-btns">
-          <button data-view="group" class="active">上层分类</button>
-          <button data-view="sub">二级分类</button>
+        <div class="filter-section">
+          <h3>📆 星期</h3>
+          <div class="filter-row">
+            <label><input type="checkbox" class="dow-cb" value="1" checked>一</label>
+            <label><input type="checkbox" class="dow-cb" value="2" checked>二</label>
+            <label><input type="checkbox" class="dow-cb" value="3" checked>三</label>
+            <label><input type="checkbox" class="dow-cb" value="4" checked>四</label>
+            <label><input type="checkbox" class="dow-cb" value="5" checked>五</label>
+            <label><input type="checkbox" class="dow-cb" value="6" checked>六</label>
+            <label><input type="checkbox" class="dow-cb" value="7" checked>日</label>
+          </div>
         </div>
-        <span id="cat-breadcrumb"><a id="cat-back">← 返回</a><span id="cat-current"></span></span>
-      </div>
-    </div>
 
-    <!-- 双图: 上图 = 总时间, 下图 = 标签明细 -->
-    <div class="chart-section">
-      <h2>📊 每日总时间</h2>
-      <div class="chart-wrapper"><canvas id="totalChart"></canvas></div>
-    </div>
-    <div class="chart-section">
-      <h2>📈 分类时间趋势</h2>
-      <div class="chart-wrapper"><canvas id="trendChart"></canvas></div>
-    </div>
+        <div class="filter-section">
+          <h3>🎯 标签显示范围</h3>
+          <div class="filter-row">
+            <span class="range-label" id="range-label">0h ~ 24h</span>
+          </div>
+          <div class="filter-row">
+            <input type="range" id="min-hours-low" min="0" max="24" step="0.5" value="0" style="flex:1">
+          </div>
+          <div class="filter-row">
+            <input type="range" id="min-hours-high" min="0" max="24" step="0.5" value="24" style="flex:1">
+          </div>
+        </div>
 
-    <!-- 单日饼图 -->
-    <div class="chart-section">
-      <h2>🥧 单日分类分布</h2>
-      <div class="filter-row" style="margin-bottom:6px">
-        <label>日期</label>
-        <input type="date" id="pie-date">
-        <label style="margin-left:6px;font-size:.78rem"><input type="checkbox" id="pie-sync" checked> 跟随趋势</label>
+        <div class="filter-section">
+          <h3>🏷️ 分类层级</h3>
+          <div class="filter-row" id="cat-level-row">
+            <div class="btn-group" id="cat-view-btns">
+              <button data-view="group" class="active">上层分类</button>
+              <button data-view="sub">二级分类</button>
+            </div>
+            <span id="cat-breadcrumb"><a id="cat-back">← 返回</a><span id="cat-current"></span></span>
+          </div>
+        </div>
       </div>
-      <div class="chart-wrapper"><canvas id="pieChart"></canvas></div>
+
+      <!-- 主体 -->
+      <div class="main">
+        <div class="chart-section">
+          <h2>📊 每日总时间</h2>
+          <div class="chart-wrapper"><canvas id="totalChart"></canvas></div>
+        </div>
+        <div class="chart-section">
+          <h2>📈 分类时间趋势</h2>
+          <div class="chart-wrapper"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="chart-section">
+          <h2>🥧 单日分类分布</h2>
+          <div class="filter-row" style="margin-bottom:6px">
+            <label style="font-size:.8rem">日期</label>
+            <input type="date" id="pie-date">
+            <label style="margin-left:6px;font-size:.76rem"><input type="checkbox" id="pie-sync" checked> 跟随趋势</label>
+          </div>
+          <div class="chart-wrapper" id="pie-wrapper"><canvas id="pieChart"></canvas></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -228,7 +265,7 @@ function filterBlocks(blocks, applySlider){
     const high=parseFloat(document.getElementById('min-hours-high').value);
     const days=aggregateByDay(blocks);
     const okDates={};
-    days.forEach(d=>{const h=Math.round(d.total/60*10)/10;if(h>=low&&h<=high)okDates[d.date]=1});
+    days.forEach(d=>{if(d.hours>=low&&d.hours<=high)okDates[d.date]=1});
     blocks=blocks.filter(b=>okDates[b.date]);
   }
   return blocks;
@@ -457,8 +494,8 @@ function renderPie(){
     data:{labels,datasets:[{data:values,backgroundColor:colors,borderColor:'transparent',borderWidth:0}]},
     plugins:[extLabelPlugin],
     options:{
-      responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?1:1.6,
-      cutout:'45%',
+      responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?0.9:1.3,
+      cutout:'60%',
       plugins:{
         title:{display:true,text:selPieDate+' · 共 '+totalHours.toFixed(1)+'h',font:{size:11}},
         tooltip:{callbacks:{label:ctx=>{const p=((ctx.parsed/totalHours)*100).toFixed(1);return ctx.label+': '+ctx.parsed.toFixed(1)+'h ('+p+'%)'}}},
@@ -491,11 +528,11 @@ const extLabelPlugin = {
     const centerY=chart.chartArea.top+chart.chartArea.height/2;
     const outerR=chart.getDatasetMeta(0).data[0]?.outerRadius||chart.chartArea.width/3;
     const labels=chart.data.labels;
-    const colors=chart.data.datasets[0].backgroundColor;
     const values=chart.data.datasets[0].data;
     const total=values.reduce((a,b)=>a+b,0);
-    const labelDist=outerR*1.5;
-    const fontSize=window.innerWidth<500?10:11;
+    const labelDist=outerR*1.2;
+    const isMobile=window.innerWidth<500;
+    const fontSize=isMobile?9:10;
     ctx.font=fontSize+'px sans-serif';
     ctx.textBaseline='middle';
 
@@ -507,19 +544,22 @@ const extLabelPlugin = {
       const midAngle=startAngle+sliceAngle/2;
       startAngle+=sliceAngle+spacing;
 
+      if(v/total<0.015)return; // 太小不标注
+
       const x1=centerX+outerR*Math.cos(midAngle);
       const y1=centerY+outerR*Math.sin(midAngle);
       const x2=centerX+labelDist*Math.cos(midAngle);
       const y2=centerY+labelDist*Math.sin(midAngle);
-      const labelX=x2+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-1:1)*(window.innerWidth<500?50:70);
+      const extend=isMobile?35:50;
+      const labelX=x2+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-1:1)*extend;
 
       ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(labelX,y2);
-      ctx.strokeStyle='rgba(148,163,184,0.5)';ctx.lineWidth=1;ctx.stroke();
+      ctx.strokeStyle='rgba(148,163,184,0.4)';ctx.lineWidth=0.8;ctx.stroke();
 
-      const txt=labels[i]+' '+v.toFixed(1)+'h ('+((v/total)*100).toFixed(1)+'%)';
+      const txt=labels[i]+' '+v.toFixed(1)+'h';
       ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
       ctx.textAlign=midAngle>Math.PI/2&&midAngle<3*Math.PI/2?'right':'left';
-      ctx.fillText(txt,labelX+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-4:4),y2);
+      ctx.fillText(txt,labelX+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-3:3),y2);
     });
   }
 };
