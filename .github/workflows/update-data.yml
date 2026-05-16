@@ -1,0 +1,55 @@
+name: 更新统计数据
+
+on:
+  # 每天北京时间 8:00 和 20:00 自动运行
+  schedule:
+    - cron: '0 0,12 * * *'
+  # 支持手动触发（手机/电脑都可以在 GitHub 页面点按钮）
+  workflow_dispatch:
+  # 代码推送时也运行一次
+  push:
+    branches: [main]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 下载数据库并提取统计数据
+        env:
+          WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
+          WEBDAV_USER: ${{ secrets.WEBDAV_USER }}
+          WEBDAV_PASS: ${{ secrets.WEBDAV_PASS }}
+        run: |
+          python extract.py --webdav "$WEBDAV_URL" "$WEBDAV_USER" "$WEBDAV_PASS" -o data/stats.json
+          echo "Generated stats.json ($(wc -c < data/stats.json) bytes)"
+
+      - name: 检查是否有变更
+        id: check
+        run: |
+          if git diff --quiet data/stats.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Data updated"
+          fi
+
+      - name: 提交并推送
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/stats.json
+          git commit -m "自动更新统计数据 [skip ci]"
+          git push

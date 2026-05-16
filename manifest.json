@@ -1,0 +1,16 @@
+{
+  "name": "3X3 时间统计",
+  "short_name": "3X3 Stats",
+  "description": "3X3 时间管理数据可视化统计",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f8f9fc",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%93%8A</text></svg>",
+      "sizes": "144x144",
+      "type": "image/svg+xml"
+    }
+  ]
+}
