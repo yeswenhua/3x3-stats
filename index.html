@@ -140,7 +140,7 @@ input[type=range]{accent-color:var(--accent);width:80px;height:3px;vertical-alig
       <!-- 主体 -->
       <div class="main">
         <div class="chart-section">
-          <h2>📊 每日总时间</h2>
+          <h2>📊 总时间</h2>
           <div class="chart-wrapper"><canvas id="totalChart"></canvas></div>
         </div>
         <div class="chart-section">
@@ -149,11 +149,6 @@ input[type=range]{accent-color:var(--accent);width:80px;height:3px;vertical-alig
         </div>
         <div class="chart-section">
           <h2>🥧 单日分类分布</h2>
-          <div class="filter-row" style="margin-bottom:6px">
-            <label style="font-size:.8rem">日期</label>
-            <input type="date" id="pie-date">
-            <label style="margin-left:6px;font-size:.76rem"><input type="checkbox" id="pie-sync" checked> 跟随趋势</label>
-          </div>
           <div class="chart-wrapper" id="pie-wrapper"><canvas id="pieChart"></canvas></div>
         </div>
       </div>
@@ -173,7 +168,6 @@ let currentRange = 'this-week';
 let fromDate = '', toDate = '';
 let catView = 'group';
 let expandedGroup = null;
-let selPieDate = '';
 const catColors = {};
 
 // ─── 数据加载 ────────────────────────────────
@@ -227,7 +221,6 @@ let groups = [];
   const mr=data.meta.date_range;
   document.getElementById('date-from').min=mr.from;document.getElementById('date-from').max=mr.to;document.getElementById('date-from').value=mr.from;
   document.getElementById('date-to').min=mr.from;document.getElementById('date-to').max=mr.to;document.getElementById('date-to').value=mr.to;
-  selPieDate=mr.to;document.getElementById('pie-date').value=mr.to;
 })();
 
 // ─── 日期范围计算 ──────────────────────────
@@ -285,29 +278,30 @@ function aggregateByDay(blocks){
 
 // ─── 分类当前层级列表 ─────────────────────
 function getActiveCategories(){
-  if(catView==='group'){
-    if(expandedGroup){
-      const g=groups.find(x=>x.name===expandedGroup);
-      if(!g)return [];
-      const subs=g.cats.map(c=>c.name);
-      // 计算上级分类是否有未分配到下级的时间
-      const parentMins=data.blocks.filter(b=>b.group===expandedGroup).reduce((s,b)=>s+b.duration_min,0);
-      const childMins=g.cats.reduce((s,c)=>s+c.mins,0);
-      const diff=Math.round((parentMins-childMins)/60*10)/10;
-      if(diff>0.05)subs.push(expandedGroup);
-      return subs;
-    }
-    return groups.map(g=>g.name);
+  if(expandedGroup){
+    const g=groups.find(x=>x.name===expandedGroup);
+    if(!g)return [];
+    const subs=g.cats.map(c=>c.name);
+    const parentMins=data.blocks.filter(b=>b.group===expandedGroup).reduce((s,b)=>s+b.duration_min,0);
+    const childMins=g.cats.reduce((s,c)=>s+c.mins,0);
+    const diff=Math.round((parentMins-childMins)/60*10)/10;
+    if(diff>0.05)subs.push(expandedGroup);
+    return subs;
   }
-  return data.categories.map(c=>c.name);
+  return groups.map(g=>g.name);
 }
+const tempSubColors={};
 function getCategoryColor(catName){
-  if(catView==='group'&&!expandedGroup)return groupColorMap[catName]||'#94a3b8';
+  if(!expandedGroup)return groupColorMap[catName]||'#94a3b8';
+  if(catView==='sub'){
+    // 从 colorPool 分配随机色
+    if(!tempSubColors[catName])tempSubColors[catName]=colorPool[Object.keys(tempSubColors).length%colorPool.length];
+    return tempSubColors[catName];
+  }
   return catColors[catName]||'#94a3b8';
 }
-function getCatDisplay(catName){
-  return catName;
-}
+const tempSubColors={};
+function getCatDisplay(catName){return catName;}
 
 // ─── 更新滑块范围 ──────────────────────────
 function updateSliderBounds(){
@@ -321,34 +315,54 @@ function updateSliderBounds(){
   document.getElementById('range-label').textContent=parseFloat(low.value)+'h ~ '+parseFloat(high.value)+'h';
 }
 
-// ─── 渲染总图（单折线，无滑块影响） ──────
+// ─── 渲染总图（反映趋势图当前分类的总和，无滑块影响） ──
 function renderTotal(){
   const blocks=filterBlocks(data.blocks.slice(),false);
   const days=aggregateByDay(blocks);
   if(days.length===0){if(totalChart){totalChart.destroy();totalChart=null}return;}
   const labels=days.map(d=>d.date);
-  const values=days.map(d=>d.hours);
+  const activeCats=getActiveCategories();
+  const values=days.map(d=>{
+    let totalMins=0;
+    activeCats.forEach(catName=>{
+      if(!expandedGroup){
+        const g=groups.find(x=>x.name===catName);
+        if(g)Object.entries(d.day.categories).forEach(([c,m])=>{
+          const cat=data.categories.find(x=>x.name===c);
+          if(cat&&cat.group===g.name)totalMins+=m;
+        });
+      } else {
+        if(catName===expandedGroup){
+          // 展开时，expandedGroup 作为剩余时间的占位名
+          const g=groups.find(x=>x.name===expandedGroup);
+          if(g){
+            let childSum=0;
+            g.cats.forEach(sc=>{childSum+=d.day.categories[sc.name]||0});
+            Object.entries(d.day.categories).forEach(([c,m])=>{
+              const cat=data.categories.find(x=>x.name===c);
+              if(cat&&cat.group===expandedGroup)totalMins+=m;
+            });
+            totalMins-=childSum;
+          }
+        } else {
+          totalMins+=d.day.categories[catName]||0;
+        }
+      }
+    });
+    return Math.round(totalMins/60*10)/10;
+  });
   if(totalChart)totalChart.destroy();
   const ctx=document.getElementById('totalChart').getContext('2d');
   totalChart=new Chart(ctx,{
     type:'line',
     data:{labels,datasets:[{
-      label:'总时长',
-      data:values,
-      borderColor:'#6366f1',
-      backgroundColor:'rgba(99,102,241,0.1)',
-      fill:true,
-      tension:.3,
-      pointRadius:1.5,
-      pointHoverRadius:5,
-      borderWidth:2
+      label:'总时长',data:values,
+      borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.1)',
+      fill:true,tension:.3,pointRadius:0,pointHoverRadius:5,borderWidth:2
     }]},
     options:{
       responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?2:4,
       interaction:{mode:'index',intersect:false},
-      onClick:(e,els)=>{
-        if(els.length>0){const d=labels[els[0].index];document.getElementById('pie-date').value=d;selPieDate=d;renderPie()}
-      },
       scales:{
         x:{ticks:{font:{size:9},maxTicksLimit:15},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}},
         y:{beginAtZero:true,title:{display:true,text:'小时',font:{size:11}},ticks:{font:{size:9},callback:v=>v+'h'},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}}
@@ -368,8 +382,8 @@ function renderTrend(){
   if(days.length===0){if(trendChart){trendChart.destroy();trendChart=null}return;}
   const labels=days.map(d=>d.date);
   const activeCats=getActiveCategories();
-  const datasets=activeCats.map(catName=>{
-    const isGroup=catView==='group'&&!expandedGroup;
+    const datasets=activeCats.map(catName=>{
+    const isGroup=!expandedGroup;
     const values=days.map(d=>{
       let mins=0;
       if(isGroup){
@@ -409,7 +423,7 @@ function renderTrend(){
       borderColor:getCategoryColor(catName),
       backgroundColor:getCategoryColor(catName)+'15',
       pointBackgroundColor:getCategoryColor(catName),
-      tension:0.3,fill:false,pointRadius:1.5,pointHoverRadius:5,borderWidth:1.5
+      tension:0.3,fill:false,pointRadius:0,pointHoverRadius:4,borderWidth:1.5
     };
   });
 
@@ -419,13 +433,12 @@ function renderTrend(){
     type:'line',data:{labels,datasets},
     options:{
       responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?1.2:2,
-      interaction:{mode:'index',intersect:false},
+      interaction:{mode:'nearest',intersect:false},
       onClick:(e,els)=>{
         if(els.length>0){
-          const d=labels[els[0].index];
-          if(catView==='group'&&!expandedGroup){
-            const dsIdx=els[0].datasetIndex;
-            const label=trendChart.data.datasets[dsIdx].label;
+          const dsIdx=els[0].datasetIndex;
+          const label=trendChart.data.datasets[dsIdx].label;
+          if(!expandedGroup){
             const match=groups.find(g=>g.name===label);
             if(match&&match.name!=='其他'&&match.name!=='未分类'){
               expandedGroup=match.name;
@@ -434,7 +447,6 @@ function renderTrend(){
               renderAll();return;
             }
           }
-          document.getElementById('pie-date').value=d;selPieDate=d;renderPie();
         }
       },
       scales:{
@@ -442,10 +454,10 @@ function renderTrend(){
         y:{beginAtZero:true,title:{display:true,text:'小时',font:{size:11}},ticks:{font:{size:9},callback:v=>v+'h'},grid:{color:getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}}
       },
       plugins:{
-        tooltip:{mode:'index',callbacks:{title:items=>items[0].label,label:ctx=>ctx.dataset.label+': '+ctx.parsed.y.toFixed(1)+'h',afterBody:items=>{const d=labels[items[0].dataIndex];const day=days.find(x=>x.date===d);return day?'当天总计: '+day.hours.toFixed(1)+'h':''}}},
+        tooltip:{callbacks:{title:items=>items[0].dataset.label,label:ctx=>ctx.parsed.y.toFixed(1)+'h'}},
         legend:{
           position:'bottom',
-          labels:{boxWidth:10,boxHeight:10,padding:6,font:{size:9},usePointStyle:true,color:getComputedStyle(document.documentElement).getPropertyValue('--text').trim()},
+          labels:{boxWidth:4,boxHeight:4,padding:4,font:{size:8},color:getComputedStyle(document.documentElement).getPropertyValue('--text').trim()},
           onClick:(e,legendItem)=>{
             const meta=trendChart.getDatasetMeta(legendItem.datasetIndex);
             meta.hidden=meta.hidden===null?!trendChart.data.datasets[legendItem.datasetIndex].hidden:!meta.hidden;
@@ -457,32 +469,31 @@ function renderTrend(){
   });
 }
 
-// ─── 单日饼图（外标注折线） ────────────────
+// ─── 饼图（趋势图数据的总分布） ────────────
 function renderPie(){
-  if(!selPieDate){if(pieChart){pieChart.destroy();pieChart=null}return;}
-  const blocks=data.blocks.filter(b=>b.date===selPieDate);
-  if(blocks.length===0&&pieChart){pieChart.destroy();pieChart=null;return;}
+  // 使用与趋势图相同的数据源（包含滑块过滤）
+  const blocks=filterBlocks(data.blocks.slice(),true);
+  if(blocks.length===0){if(pieChart){pieChart.destroy();pieChart=null}return;}
 
   const totals={};
-  const showGroup=catView==='group'&&!expandedGroup;
+  const isGroup=!expandedGroup;
   blocks.forEach(b=>{
-    const key=showGroup?b.group:b.category;
+    const key=isGroup?b.group:b.category;
     totals[key]=(totals[key]||0)+b.duration_min;
   });
-  // 展开时父级剩余时间
-  if(expandedGroup&&!showGroup){
+  if(expandedGroup){
     const g=groups.find(x=>x.name===expandedGroup);
     if(g){
       let childSum=0;g.cats.forEach(c=>{childSum+=totals[c.name]||0});
       const parentTotal=totals[expandedGroup]||0;
-      const diff=parentTotal-childSum;
+      const diff=Math.round((parentTotal-childSum)/60*10)/10;
       if(diff>0.05){totals[expandedGroup]=diff}else{delete totals[expandedGroup]}
     }
   }
   const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
-  const labels=sorted.map(([k])=>getCatDisplay(k));
+  const labels=sorted.map(([k])=>k);
   const values=sorted.map(([,v])=>Math.round(v/60*10)/10);
-  const colors=sorted.map(([k])=>showGroup?groupColorMap[k]||'#94a3b8':catColors[k]||'#94a3b8');
+  const colors=sorted.map(([k])=>isGroup?groupColorMap[k]||'#94a3b8':getCategoryColor(k));
 
   if(pieChart)pieChart.destroy();
   const ctx=document.getElementById('pieChart').getContext('2d');
@@ -491,18 +502,18 @@ function renderPie(){
 
   pieChart=new Chart(ctx,{
     type:'doughnut',
-    data:{labels,datasets:[{data:values,backgroundColor:colors,borderColor:'transparent',borderWidth:0}]},
-    plugins:[extLabelPlugin],
+    data:{labels,datasets:[{data:values,backgroundColor:colors,borderColor:getComputedStyle(document.documentElement).getPropertyValue('--card').trim(),borderWidth:1}]},
+    plugins:[insideOutsideLabels],
     options:{
-      responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?0.9:1.3,
-      cutout:'60%',
+      responsive:true,maintainAspectRatio:true,aspectRatio:window.innerWidth<500?1:1.6,
+      cutout:'50%',
       plugins:{
-        title:{display:true,text:selPieDate+' · 共 '+totalHours.toFixed(1)+'h',font:{size:11}},
+        title:{display:true,text:'总分布 · '+totalHours.toFixed(1)+'h',font:{size:11}},
         tooltip:{callbacks:{label:ctx=>{const p=((ctx.parsed/totalHours)*100).toFixed(1);return ctx.label+': '+ctx.parsed.toFixed(1)+'h ('+p+'%)'}}},
         legend:{display:false}
       },
       onClick:(e,els)=>{
-        if(els.length>0&&catView==='group'&&!expandedGroup){
+        if(els.length>0&&!expandedGroup){
           const label=pieChart.data.labels[els[0].index];
           const match=groups.find(g=>g.name===label);
           if(match&&match.name!=='其他'&&match.name!=='未分类'){
@@ -517,49 +528,70 @@ function renderPie(){
   });
 }
 
-// ─── 饼图外标注插件 ─────────────────────────
-const extLabelPlugin = {
-  id:'extLabel',
+// ─── 饼图内外标注插件 ───────────────────────
+const insideOutsideLabels={
+  id:'inOutLabels',
   afterDraw(chart){
     const ctx=chart.ctx;
     const meta=chart.getDatasetMeta(0);
     if(!meta||!meta.data)return;
     const centerX=chart.chartArea.left+chart.chartArea.width/2;
     const centerY=chart.chartArea.top+chart.chartArea.height/2;
-    const outerR=chart.getDatasetMeta(0).data[0]?.outerRadius||chart.chartArea.width/3;
+    const first=chart.getDatasetMeta(0).data[0];
+    if(!first)return;
+    const outerR=first.outerRadius;
+    const innerR=first.innerRadius;
+    const midR=(outerR+innerR)/2;
     const labels=chart.data.labels;
     const values=chart.data.datasets[0].data;
     const total=values.reduce((a,b)=>a+b,0);
-    const labelDist=outerR*1.2;
     const isMobile=window.innerWidth<500;
     const fontSize=isMobile?9:10;
-    ctx.font=fontSize+'px sans-serif';
+    ctx.font='bold '+fontSize+'px sans-serif';
     ctx.textBaseline='middle';
 
     let startAngle=-Math.PI/2;
     const spacing=0.02;
 
     values.forEach((v,i)=>{
+      if(v/total<0.008)return;
       const sliceAngle=(v/total)*2*Math.PI-spacing;
       const midAngle=startAngle+sliceAngle/2;
       startAngle+=sliceAngle+spacing;
 
-      if(v/total<0.015)return; // 太小不标注
-
-      const x1=centerX+outerR*Math.cos(midAngle);
-      const y1=centerY+outerR*Math.sin(midAngle);
-      const x2=centerX+labelDist*Math.cos(midAngle);
-      const y2=centerY+labelDist*Math.sin(midAngle);
-      const extend=isMobile?35:50;
-      const labelX=x2+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-1:1)*extend;
-
-      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(labelX,y2);
-      ctx.strokeStyle='rgba(148,163,184,0.4)';ctx.lineWidth=0.8;ctx.stroke();
-
       const txt=labels[i]+' '+v.toFixed(1)+'h';
-      ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
-      ctx.textAlign=midAngle>Math.PI/2&&midAngle<3*Math.PI/2?'right':'left';
-      ctx.fillText(txt,labelX+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-3:3),y2);
+      const txtW=ctx.measureText(txt).width;
+
+      // 判断圆弧长度是否够放文字
+      const arcLen=midR*sliceAngle;
+      const fits=arcLen>txtW*1.3;
+
+      if(fits){
+        // 放在扇形内部
+        const x=centerX+midR*Math.cos(midAngle)-txtW/2;
+        const y=centerY+midR*Math.sin(midAngle);
+        ctx.fillStyle='rgba(255,255,255,.9)';
+        ctx.fillRect(x-2,y-fontSize/2-1,txtW+4,fontSize+2);
+        ctx.fillStyle='#1e293b';
+        ctx.textAlign='left';
+        ctx.fillText(txt,x,y);
+      } else {
+        // 拉引出线放在外部
+        const labelDist=outerR*1.2;
+        const x1=centerX+outerR*Math.cos(midAngle);
+        const y1=centerY+outerR*Math.sin(midAngle);
+        const x2=centerX+labelDist*Math.cos(midAngle);
+        const y2=centerY+labelDist*Math.sin(midAngle);
+        const extend=isMobile?40:55;
+        const labelX=x2+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-1:1)*extend;
+
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(labelX,y2);
+        ctx.strokeStyle='rgba(148,163,184,0.4)';ctx.lineWidth=0.8;ctx.stroke();
+
+        ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
+        ctx.textAlign=midAngle>Math.PI/2&&midAngle<3*Math.PI/2?'right':'left';
+        ctx.fillText(txt,labelX+(midAngle>Math.PI/2&&midAngle<3*Math.PI/2?-3:3),y2);
+      }
     });
   }
 };
@@ -578,23 +610,18 @@ document.querySelectorAll('#range-btns button').forEach(btn=>{
     document.getElementById('date-to').disabled=!cust;
     if(!cust){const{f,t}=getComputedRange();document.getElementById('date-from').value=f;document.getElementById('date-to').value=t}
     else{fromDate=document.getElementById('date-from').value;toDate=document.getElementById('date-to').value}
-    renderTotal();renderTrend();updateSliderBounds();
-    if(document.getElementById('pie-sync').checked){
-      const blocks=filterBlocks(data.blocks.slice(),false);
-      const days=aggregateByDay(blocks);
-      if(days.length>0){selPieDate=days[days.length-1].date;document.getElementById('pie-date').value=selPieDate;renderPie()}
-    }
+    renderTotal();renderTrend();updateSliderBounds();renderPie();
   });
 });
-document.getElementById('date-from').addEventListener('change',function(){if(currentRange==='custom'){fromDate=this.value;renderTotal();renderTrend();updateSliderBounds()}});
-document.getElementById('date-to').addEventListener('change',function(){if(currentRange==='custom'){toDate=this.value;renderTotal();renderTrend();updateSliderBounds()}});
-document.querySelectorAll('.dow-cb').forEach(cb=>{cb.addEventListener('change',()=>{renderTotal();renderTrend();updateSliderBounds()})});
+document.getElementById('date-from').addEventListener('change',function(){if(currentRange==='custom'){fromDate=this.value;renderTotal();renderTrend();updateSliderBounds();renderPie()}});
+document.getElementById('date-to').addEventListener('change',function(){if(currentRange==='custom'){toDate=this.value;renderTotal();renderTrend();updateSliderBounds();renderPie()}});
+document.querySelectorAll('.dow-cb').forEach(cb=>{cb.addEventListener('change',()=>{renderTotal();renderTrend();updateSliderBounds();renderPie()})});
 function onRangeChange(){const l=parseFloat(document.getElementById('min-hours-low').value),h=parseFloat(document.getElementById('min-hours-high').value);
   document.getElementById('range-label').textContent=l+'h ~ '+h+'h';
   if(l>h){document.getElementById('min-hours-low').value=h;document.getElementById('min-hours-high').value=l}
-  renderTrend()}
+  renderTrend();renderPie()}
 document.getElementById('min-hours-low').addEventListener('input',onRangeChange);
-document.getElementById('min-hours-high').addEventListener('input',function(){const l=parseFloat(document.getElementById('min-hours-low').value),h=parseFloat(this.value);document.getElementById('range-label').textContent=l+'h ~ '+h+'h';if(h<l){document.getElementById('min-hours-low').value=h;document.getElementById('min-hours-high').value=l}renderTrend()});
+document.getElementById('min-hours-high').addEventListener('input',function(){const l=parseFloat(document.getElementById('min-hours-low').value),h=parseFloat(this.value);document.getElementById('range-label').textContent=l+'h ~ '+h+'h';if(h<l){document.getElementById('min-hours-low').value=h;document.getElementById('min-hours-high').value=l}renderTrend();renderPie()});
 document.querySelectorAll('#cat-view-btns button').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('#cat-view-btns button').forEach(b=>b.classList.remove('active'));
@@ -606,11 +633,9 @@ document.querySelectorAll('#cat-view-btns button').forEach(btn=>{
   });
 });
 document.getElementById('cat-back').addEventListener('click',()=>{expandedGroup=null;document.getElementById('cat-breadcrumb').style.display='none';renderAll()});
-document.getElementById('pie-date').addEventListener('change',function(){selPieDate=this.value;document.getElementById('pie-sync').checked=false;renderPie()});
-document.getElementById('pie-sync').addEventListener('change',function(){if(this.checked){const blocks=filterBlocks(data.blocks.slice(),false);const days=aggregateByDay(blocks);if(days.length>0){selPieDate=days[days.length-1].date;document.getElementById('pie-date').value=selPieDate;renderPie()}}});
 window.addEventListener('resize',renderAll);
 
-// ─── 启动 ──────────────────────────────────
+// 初始渲染（含饼图）
 document.querySelector('#range-btns .active').click();
 })();
 </script>
