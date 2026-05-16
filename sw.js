@@ -21,16 +21,18 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      const network = fetch(e.request).then(resp => {
-        if (resp.ok) {
-          const clone = resp.clone();
-          caches.open(CACHE).then(cache => cache.put(e.request, clone));
-        }
-        return resp;
-      }).catch(() => cached);
-      return cached || network;
-    })
-  );
+  if(e.request.url.startsWith('http')){
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const network = fetch(e.request).then(resp => {
+          if (resp.ok) {
+            const clone = resp.clone();
+            caches.open(CACHE).then(cache => cache.put(e.request, clone));
+          }
+          return resp;
+        }).catch(() => cached);
+        return cached || network;
+      })
+    );
+  }
 });
