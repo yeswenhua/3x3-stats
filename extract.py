@@ -55,42 +55,27 @@ def extract(db_path):
     # ─────────────────────────────────────────────
     # 1. 读取 tag_groups.json 分组配置，建立 tag → group 映射
     # ─────────────────────────────────────────────
-    tag_to_group = {}   # tag_name -> {name, color}
-    hierarchy = {}      # parent_tag -> [child_tags]
     script_dir = os.path.dirname(os.path.abspath(__file__))
     tag_groups_path = os.path.join(script_dir, "tag_groups.json")
+    tag_to_group = {}   # tag_name -> {name, color}
     if os.path.exists(tag_groups_path):
         with open(tag_groups_path, encoding="utf-8") as f:
             cfg = json.load(f)
-        for gname, ginfo in cfg["groups"].items():
-            def _walk_tags(entries):
-                for item in entries:
-                    if isinstance(item, str):
-                        tag_to_group[item] = {"name": gname, "color": ginfo["color"]}
-                    elif isinstance(item, dict):
-                        for parent, children in item.items():
-                            tag_to_group[parent] = {"name": gname, "color": ginfo["color"]}
-                            _walk_tags(children)
-            _walk_tags(ginfo["tags"])
-        # 提取层级关系
-        def _extract_tree(entries):
-            for item in entries:
-                if isinstance(item, dict):
-                    for parent, children in item.items():
-                        hierarchy[parent] = []
-                        for c in children:
-                            if isinstance(c, str):
-                                hierarchy[parent].append(c)
-                            elif isinstance(c, dict):
-                                hierarchy[parent].extend(list(c.keys()))
-                                _extract_tree([c])
-        for gname, ginfo in cfg["groups"].items():
-            _extract_tree(ginfo["tags"])
+        for tagname, gname in cfg["tag_group_map"].items():
+            if gname in cfg["groups"]:
+                tag_to_group[tagname] = {"name": gname, "color": cfg["groups"][gname]["color"]}
 
     # 从数据库中读取标签列表
     all_tags = {}
     for r in c.execute("SELECT tag_id, tag_name FROM C_TAG").fetchall():
         all_tags[r["tag_id"]] = r["tag_name"]
+
+    # 读取标签父子关系
+    parent_map = {}
+    for r in c.execute("SELECT tag_id, parentTagId FROM C_TAG WHERE parentTagId IS NOT NULL").fetchall():
+        pid = r["parentTagId"]
+        if pid in all_tags and r["tag_id"] in all_tags:
+            parent_map[all_tags[r["tag_id"]]] = all_tags[pid]
 
     # 辅助函数: 将毫秒时间戳转为 ISO 周标记
     def _to_week_key(ts_ms):
@@ -146,6 +131,7 @@ def extract(db_path):
             "title": sanitize(s["schedule_title"] or ""),
             "duration_min": duration_min,
             "category": sanitize(category_name),
+            "parent_category": sanitize(parent_map.get(category_name, "")),
             "group": sanitize(group_name),
             "group_color": group_color
         })
@@ -226,7 +212,6 @@ def extract(db_path):
         },
         "group_info": list(group_info.values()),
         "categories": categories,
-        "hierarchy": hierarchy,
         "blocks": blocks,
         "aggregates": {
             "daily": daily,
