@@ -86,9 +86,27 @@ def extract(db_path):
         for gname, ginfo in cfg["groups"].items():
             gcolor = ginfo["color"]
             entry = {"name": gname, "color": gcolor}
-            subs = ginfo.get("subs", [])
+            own_tag = ginfo.get("own_tag")
+            subs = list(ginfo.get("subs", []))
+            # 映射 own_tag 到该组
+            if own_tag:
+                subs.insert(0, {"name": own_tag, "tags": [own_tag]})
+            # 映射组名自身到该组（如 "充分利用" 既在组名又是标签）
+            tag_to_group[gname] = {"name": gname, "color": gcolor}
             if subs:
                 entry["children"] = _walk_tree(subs, gname, gcolor)
+                # 汇总所有后代标签（含 own_tag）
+                child_tags = set()
+                def _collect(nodes):
+                    for n in nodes:
+                        child_tags.update(n.get("all_tags", []))
+                        if n.get("children"):_collect(n["children"])
+                _collect(entry["children"])
+                entry["all_tags"] = list(child_tags)
+            else:
+                entry["all_tags"] = [gname]
+            if own_tag and own_tag not in entry["all_tags"]:
+                entry["all_tags"].append(own_tag)
             hierarchy.append(entry)
 
     # 从数据库中读取标签列表
