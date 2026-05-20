@@ -136,14 +136,13 @@ def extract(db_path):
     zero_duration_count = 0
 
     for s in schedules:
-        duration_ms = (s["end_date"] or 0) - (s["create_date"] or 0)
-        if duration_ms <= 0:
+        start_ts = s["create_date"]
+        end_ts = s["end_date"]
+        if not start_ts or not end_ts or end_ts <= start_ts:
             zero_duration_count += 1
             continue
 
-        duration_min = round(duration_ms / 60000, 1)
-
-        # 解析分类：从 tag_groups.json 映射查找
+        # 解析分类
         tag_id = s["tag_id"]
         category_name = "未分类"
         group_name = "其他"
@@ -159,18 +158,39 @@ def extract(db_path):
         else:
             uncategorized_count += 1
 
-        blocks.append({
-            "date": s["create_date_key"],
-            "ts": s["create_date"],
-            "week": _to_week_key(s["create_date"]),
-            "month": s["create_date_key"][:7],
-            "year": s["create_date_key"][:4],
-            "title": sanitize(s["schedule_title"] or ""),
-            "duration_min": duration_min,
-            "category": sanitize(category_name),
-            "group": sanitize(group_name),
-            "group_color": group_color
-        })
+        cat_t = sanitize(category_name)
+        grp_t = sanitize(group_name)
+        title_t = sanitize(s["schedule_title"] or "")
+
+        # 跨天拆分为按天分段
+        start_dt = datetime.fromtimestamp(start_ts / 1000)
+        end_dt = datetime.fromtimestamp(end_ts / 1000)
+        cur = start_dt
+
+        while cur < end_dt:
+            # 下一个午夜（00:00 次日）
+            midnight = datetime(cur.year, cur.month, cur.day) + timedelta(days=1)
+            seg_end = min(midnight, end_dt)
+
+            seg_ms = (seg_end - cur).total_seconds() * 1000
+            seg_min = round(seg_ms / 60000, 1)
+            seg_ts = int(cur.timestamp() * 1000)
+            date_key = cur.strftime("%Y-%m-%d")
+
+            blocks.append({
+                "date": date_key,
+                "ts": seg_ts,
+                "week": _to_week_key(seg_ts),
+                "month": date_key[:7],
+                "year": date_key[:4],
+                "title": title_t,
+                "duration_min": seg_min,
+                "category": cat_t,
+                "group": grp_t,
+                "group_color": group_color
+            })
+
+            cur = midnight
 
     # ─────────────────────────────────────────────
     # 3. 构建分类列表 (按分组组织)
